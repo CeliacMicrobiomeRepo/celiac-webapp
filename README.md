@@ -1,6 +1,8 @@
 # The Celiac Microbiome Repository Web App
 This is the R Shiny web application used to view the Celiac Microbiome Repository
 
+View the live web app [here](https://celiac.shinyapps.io/celiac-webapp/)
+
 ## The Celiac Microbiome Repository
 The Celiac Microbiome Repository (CMR) is the best effort to comprehensively combine all high throughput sequencing datasets of the gut microbiome related to celiac disease. This [publication](https://paper.link) used data from version 1.0 of The Celiac Microbiome Repository (CMR), which was up to date as of **10th September 2024**. CMR is being extended beyond this date and is accessible on the [CMR GitHub Repo](https://github.com/CeliacMicrobiomeRepo/celiac-repository/tree/main/)
 
