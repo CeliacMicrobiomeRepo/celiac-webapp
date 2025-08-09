@@ -4,5 +4,4 @@
 .Ruserdata
 rsconnect/
 .DS_Store
-*.Rproj
 repo_data/*.tsv

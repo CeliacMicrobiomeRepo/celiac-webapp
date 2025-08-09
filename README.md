@@ -7,16 +7,12 @@ View the live web app [here](https://celiac.shinyapps.io/celiac-webapp/)
 The Celiac Microbiome Repository (CMR) is the best effort to comprehensively combine all high throughput sequencing datasets of the gut microbiome related to celiac disease. This [publication](https://paper.link) used data from version 1.0 of The Celiac Microbiome Repository (CMR), which was up to date as of **15th July 2025**. CMR is being extended beyond this date and is accessible on the [CMR GitHub Repo](https://github.com/CeliacMicrobiomeRepo/celiac-repository/tree/main/)
 
 
-## Deployment
-To deploy the application using RStudio Connect:
+## Authors
+- **Haig Bishop**:   haig.bishop@pg.canterbury.ac.nz
+- **Peter Prendergast**
 
-```r
-library(rsconnect)
-rsconnect::deployApp(
-  appDir = "/Users/haig/Repos/celiac-webapp",
-  account = "celiac"
-)
-```
+
+---
 
 
 ## Requirements & Licenses
@@ -47,6 +43,18 @@ This project is licensed under the **GNU General Public License v3.0 (GPL-3)** t
 - **jQuery**: [MIT](https://jquery.org/license/)
 
 
-## Authors
-- **Haig Bishop**:   haig.bishop@pg.canterbury.ac.nz
-- **Peter Prendergast**
+## Deployment
+1. Your system needs R some R packages
+   - R 4.4.1 is proven to be stable
+   - Use install_deps.R to see R packages
+2. You'll need to obtain the `.tsv` data files from the CMR
+   - The Python script `fetch_repo_data.py` does this automatically.
+   - The 4 `.tsv` files sit in `repo_data`
+3. To deploy the application to shinyapps.io run this using RStudio Connect:
+  ```r
+  library(rsconnect)
+  rsconnect::deployApp(
+    appDir = "/Users/haig/Repos/celiac-webapp",
+    account = "celiac"
+  )
+  ```

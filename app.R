@@ -147,18 +147,12 @@ ui <- fluidPage(
     ),
     
     tabPanel("Plots",
-               sidebarLayout(
-                sidebarPanel(
-                  # Empty :(
-                  width = 3,
-                  class = "custom-sidebar"  # Custom styling for the sidebar
-                ),
-               mainPanel(
-                 # Display plots
+             fluidRow(
+               column(
+                 width = 12,
+                 class = "custom-main",
                  h3("Plots"),
-                 uiOutput("plot_grid"),  # Output for dynamic grid of plots
-                 width = 9,
-                 class = "custom-main"  # Custom styling for the main panel
+                 uiOutput("plot_grid")
                )
              )
     )
