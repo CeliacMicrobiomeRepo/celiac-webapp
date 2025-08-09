@@ -3,41 +3,43 @@
 
 # Define color constants
 COLORS <- list(
-  PRIMARY = "#d9ad6c",      # Main theme color
-  SECONDARY = "#7eb4de",    # Secondary color (used for non-celiac)
+  PRIMARY = "#d9ad6c",       # Main theme color
+  SECONDARY = "#7eb4de",     # Secondary color (used for non-celiac)
   BACKGROUND = "#cccccc",    # Background color for maps
-  TEXT = "white"            # Text color
+  TEXT = "white"             # Text color
 )
 
 # Load necessary libraries for the application
 library(markdown)        # For rendering Markdown content
-library(shiny)          # For building the Shiny web application
-library(DT)             # For rendering interactive data tables
-library(ggplot2)        # For creating plots and visualizations
-library(rworldmap)      # For mapping geographical data
-library(rworldxtra)     # Additional world map data
-library(dplyr)          # For data manipulation
-library(sf)             # For handling spatial data
-library(ggplot2)        # For creating plots (duplicate, can be removed)
-library(rnaturalearth)  # For natural earth map data
+library(shiny)           # For building the Shiny web application
+library(DT)              # For rendering interactive data tables
+library(ggplot2)         # For creating plots and visualizations
+library(rworldmap)       # For mapping geographical data
+library(rworldxtra)      # Additional world map data
+library(dplyr)           # For data manipulation
+library(sf)              # For handling spatial data
+library(rnaturalearth)   # For natural earth map data
 library(rnaturalearthdata) # For additional natural earth data
-library(countrycode)    # For converting country names to codes
-library(grid)           # For grid graphics
-library(gridExtra)      # For arranging multiple grid graphics
-library(reshape2)       # For reshaping data
+library(countrycode)     # For converting country names to codes
+library(grid)            # For grid graphics
+library(gridExtra)       # For arranging multiple grid graphics
+library(reshape2)        # For reshaping data
 
 # Define default columns to display for datasets and samples
-# ALL: Dataset_ID	Bioproject_ID	Record_Link	Publication_Title	Publication_Link	Month_Of_Publication	DOI	Used_In_Previous_Meta_Analysis	Lit_Search_Source	Data_Source	Sequencing_Type	Sequencing_Technology	Prospective_Study	Sample_Sites	Amplicon_Region	V1	V2	V3	V4	V5	V6	Forward_Primer	Reverse_Primer	DNA_Extraction_Kit	Read_Pairing	Trimming_Of_Reads_After_Acquisition	Bowtie2_Alignment_Sensitivity	Host_Genome_Index	MetaPhlAn_Database	Fw_Read_Trim_Position	Rv_Read_Trim_Position	ASV_Table_Length_Filter	Notes_From_Processing	Age_Range	Num_Samples_Processed_And_With_Metadata	Num_Individuals_Processed_And_With_Metadata	Num_Celiac_Samples_Processed_And_With_Metadata	Num_GFD_Samples_Processed_And_With_Metadata	Num_Prospective_Celiac_Samples_Processed_And_With_Metadata	Longitudinal_Study	Country	Samples_With_Significant_Factors	Prospective_Studies	Shotgun_Studies	Study_Design_Description
+# ALL: Dataset_ID	Bioproject_ID	Record_Link	Publication_Title	Publication_Link	Month_Of_Publication	DOI	Used_In_Previous_Meta_Analysis	Lit_Search_Source	Data_Source	Sequencing_Type	Sequencing_Technology	Prospective_Study	Sample_Sites	Amplicon_Region	Forward_Primer	Reverse_Primer	DNA_Extraction_Kit	Read_Pairing	Trimming_Of_Reads_After_Acquisition	Bowtie2_Alignment_Sensitivity	Host_Genome_Index	MetaPhlAn_Database	Fw_Read_Trim_Position	Rv_Read_Trim_Position	ASV_Table_Length_Filter	Notes_From_Processing	Age_Range	Num_Samples	Num_Individuals	Num_Celiac_Samples	Num_GFD_Samples	Num_Prospective_Celiac_Samples	Longitudinal_Study	Country	Samples_With_Significant_Factors	Prospective_Studies	Shotgun_Studies	Study_Design_Description	Multiple_Publications
 DEFAULT_DATA_SET_COLUMNS <- c(
   "Dataset_ID", "Sequencing_Type", "Amplicon_Region", "Sample_Sites",
-  "Country", "Publication_Title", "Num_Samples", "Num_Individuals",
-  "Num_Celiac_Samples", "Num_GFD_Samples", "Num_Prospective_Celiac_Samples"
+  "Country", "Num_Samples", "Num_Celiac_Samples", 
+  "Num_Prospective_Celiac_Samples", "Study_Design_Description"
 )
-# ALL: Sample_ID	Dataset_ID	SRA_Run_ID	SRA_Project_ID	Month_of_Publication	Publication_DOI	Sequencing_Type	Amplicon_Region	Seq_Depth_Filtered	Seq_Tech	DNA_Ext_Kit	Paired_Reads	Sample_Site	Diagnosed_Celiac	Gluten_Free_Diet	Group	Will_Develop_Celiac	Group_Prospective_Study	Short_term_Gluten_Challenge	NCGS	Other_Autoimmune	Hookworm	Possible_Celiac	Any_Significant_Factor	Country	Age	Sex
+# ALL: SRA_Run_ID	Sample_ID	Dataset_ID	SRA_Project_ID	Month_of_Publication	Publication_DOI	Sequencing_Type	Amplicon_Region	Num_Reads_Nonchim	Percent_Host_Reads_Removed	Total_Pairs_Pre_Host_Removal	Seq_Tech	DNA_Ext_Kit	Paired_Reads	Sample_Site	Diagnosed_Celiac	Gluten_Free_Diet	Group	Will_Develop_Celiac	Group_Prospective_Study	Short_term_Gluten_Challenge	NCGS	Other_Autoimmune	Hookworm	Possible_Celiac	Any_Significant_Factor	Country	Age	Sex
 DEFAULT_SAMPLE_COLUMNS <- c(
-  "Sample_ID", "Dataset_ID", "Sample_Site", "Group", "Country",
-  "Sequencing_Type", "Amplicon_Region"
+  "Sample_ID", "Dataset_ID", "Sequencing_Type", "Amplicon_Region", 
+  "Seq_Tech", "Sample_Site", "Group", "Group_Prospective_Study", "Country"
+  
 )
+
+
 
 # UI definition for the Shiny application
 ui <- fluidPage(
@@ -100,6 +102,7 @@ ui <- fluidPage(
                mainPanel(
                  # Display the table for included datasets
                  h3("Datasets"),
+                 downloadButton("download_datasets_table", "Download Filtered Table"),
                  DT::dataTableOutput("datasets_table"),  # Output for datasets table
                  width = 9,
                  class = "custom-main"  # Custom styling for the main panel
@@ -135,6 +138,7 @@ ui <- fluidPage(
                ),
                mainPanel(
                  h3("Samples"),
+                 downloadButton("download_samples_table", "Download Filtered Table"),
                  DT::dataTableOutput("samples_table"),  # Output for samples table
                  width = 9,
                  class = "custom-main"  # Custom styling for the main panel
@@ -143,13 +147,12 @@ ui <- fluidPage(
     ),
     
     tabPanel("Plots",
-             sidebarLayout(
-               sidebarPanel(
-                 # Options for plotting
-                 h4("Plot Options"),
-                 width = 3,
-                 class = "custom-sidebar"  # Custom styling for the sidebar
-               ),
+               sidebarLayout(
+                sidebarPanel(
+                  # Empty :(
+                  width = 3,
+                  class = "custom-sidebar"  # Custom styling for the sidebar
+                ),
                mainPanel(
                  # Display plots
                  h3("Plots"),
@@ -165,12 +168,48 @@ ui <- fluidPage(
 # Server logic for the Shiny application
 server <- function(input, output, session) {
   
+  # Helpers
+  read_tsv_robust <- function(path) {
+    if (requireNamespace("readr", quietly = TRUE)) {
+      readr::read_tsv(path, show_col_types = FALSE, progress = FALSE, guess_max = 100000)
+    } else {
+      read.delim(
+        path,
+        header = TRUE,
+        sep = "\t",
+        quote = "",
+        fill = TRUE,
+        check.names = FALSE,
+        stringsAsFactors = FALSE,
+        comment.char = ""
+      )
+    }
+  }
+  
+  to_logical <- function(x) {
+    if (is.logical(x)) return(x)
+    x_chr <- tolower(as.character(x))
+    y <- ifelse(
+      x_chr %in% c("true", "t", "1", "yes", "y"), TRUE,
+      ifelse(x_chr %in% c("false", "f", "0", "no", "n"), FALSE, NA)
+    )
+    as.logical(y)
+  }
+  
   included_datasets <- NULL  # Initialize variable for datasets
   included_samples <- NULL    # Initialize variable for samples
+  world_map_sf <- NULL        # Cache for Natural Earth world map
   
   # Load the datasets file if it exists
   if (file.exists("repo_data/included_datasets.tsv")) {
-    included_datasets <- read.table("repo_data/included_datasets.tsv", header = TRUE, sep = "\t")
+    included_datasets <- read_tsv_robust("repo_data/included_datasets.tsv")
+    
+    # TEMPORARY: Ignore the datasets 16S_22_Ozturk and 16S_101_Roque
+    if ("Dataset_ID" %in% names(included_datasets)) {
+      included_datasets <- included_datasets[
+        !(included_datasets$Dataset_ID %in% c("16S_22_Ozturk", "16S_101_Roque")),
+      ]
+    }
     
     # Update the column choices for datasets dynamically
     updateCheckboxGroupInput(session, "selected_columns",
@@ -180,7 +219,22 @@ server <- function(input, output, session) {
   
   # Load the samples file if it exists
   if (file.exists("repo_data/all_samples.tsv")) {
-    included_samples <- read.table("repo_data/all_samples.tsv", header = TRUE, sep = "\t")
+    included_samples <- read_tsv_robust("repo_data/all_samples.tsv")
+    
+    # TEMPORARY: Ignore the datasets 16S_22_Ozturk and 16S_101_Roque
+    if ("Dataset_ID" %in% names(included_samples)) {
+      included_samples <- included_samples[
+        !(included_samples$Dataset_ID %in% c("16S_22_Ozturk", "16S_101_Roque")),
+      ]
+    }
+    
+    # Best-effort coercion of logical-like columns
+    if ("Diagnosed_Celiac" %in% names(included_samples)) {
+      included_samples$Diagnosed_Celiac <- to_logical(included_samples$Diagnosed_Celiac)
+    }
+    if ("Gluten_Free_Diet" %in% names(included_samples)) {
+      included_samples$Gluten_Free_Diet <- to_logical(included_samples$Gluten_Free_Diet)
+    }
     
     # Update the column choices for samples dynamically
     updateCheckboxGroupInput(session, "selected_sample_columns",
@@ -214,12 +268,60 @@ server <- function(input, output, session) {
                   multiple = TRUE)  # Allow multiple selections
     })
   }
+
+  # Cache world map once per session for Plot 3
+  world_map_sf <- tryCatch({
+    ne_countries(scale = "medium", returnclass = "sf")
+  }, error = function(e) NULL)
   
+  # Shared reactives for commonly reused filtered datasets
+  filtered_samples <- reactive({
+    if (is.null(included_samples)) return(NULL)
+    data <- included_samples
+    if (!is.null(input$sample_site_filter_input) && length(input$sample_site_filter_input) > 0) {
+      data <- data[data$Sample_Site %in% input$sample_site_filter_input, ]  # Filter by sample site
+    }
+    if (!is.null(input$group_filter_input) && length(input$group_filter_input) > 0) {
+      data <- data[data$Group %in% input$group_filter_input, ]  # Filter by group
+    }
+    if (!is.null(input$dataset_filter_input) && length(input$dataset_filter_input) > 0) {
+      data <- data[data$Dataset_ID %in% input$dataset_filter_input, ]  # Filter by dataset
+    }
+    data
+  })
+
+  celiac_samples <- reactive({
+    if (is.null(included_samples)) return(NULL)
+    included_samples[included_samples$Diagnosed_Celiac == TRUE, ]  # Subset to diagnosed celiac
+  })
+
+  samples_16s <- reactive({
+    if (is.null(included_samples)) return(NULL)
+    included_samples[grepl("16S", included_samples$Sequencing_Type, ignore.case = TRUE), ]  # Subset 16S samples
+  })
+
   # Render the datasets table based on selected columns
   output$datasets_table <- DT::renderDataTable({
     if (!is.null(included_datasets) && !is.null(input$selected_columns)) {
       displayed_data <- included_datasets[, input$selected_columns, drop = FALSE]  # Select columns to display
       
+      # Make Publication_Link clickable if present
+      if ("Publication_Link" %in% colnames(displayed_data)) {
+        displayed_data$Publication_Link <- ifelse(
+          !is.na(displayed_data$Publication_Link) & displayed_data$Publication_Link != "",
+          paste0("<a href='", displayed_data$Publication_Link, "' target='_blank'>", displayed_data$Publication_Link, "</a>"),
+          displayed_data$Publication_Link
+        )
+      }
+
+      # Make Record_Link clickable if present
+      if ("Record_Link" %in% colnames(displayed_data)) {
+        displayed_data$Record_Link <- ifelse(
+          !is.na(displayed_data$Record_Link) & displayed_data$Record_Link != "",
+          paste0("<a href='", displayed_data$Record_Link, "' target='_blank'>", displayed_data$Record_Link, "</a>"),
+          displayed_data$Record_Link
+        )
+      }
       DT::datatable(displayed_data,
                     options = list(
                       pageLength = 50,  # Number of rows per page
@@ -227,7 +329,22 @@ server <- function(input, output, session) {
                       scrollX = TRUE,   # Enable horizontal scrolling
                       scrollY = "75vh", # Set vertical scroll height
                       dom = 'tip',      # Display table information and pagination
-                      buttons = c('csv', 'excel', 'pdf')  # Export options
+                      buttons = c('csv', 'excel', 'pdf'),  # Export options
+                       deferRender = TRUE,  # Faster initial draw
+                       processing = TRUE,    # Show processing indicator
+                       columnDefs = list(list(
+                         targets = "_all",
+                         render = DT::JS(
+                           "function(data, type, row, meta) {",
+                           "  if (type === 'display') {",
+                           "    if (data === null || data === undefined || data === '') {",
+                           "      return 'NA';",
+                           "    }",
+                           "  }",
+                           "  return data;",
+                           "}"
+                         )
+                       ))
                     ),
                     class = "display compact nowrap hover",  # Table styling
                     rownames = FALSE,  # Do not display row names
@@ -240,19 +357,8 @@ server <- function(input, output, session) {
   # Render the samples table based on selected columns
   output$samples_table <- DT::renderDataTable({
     if (!is.null(included_samples) && !is.null(input$selected_sample_columns)) {
-      # Start with the full data
-      filtered_data <- included_samples
-      
-      # Apply filters based on user selections
-      if (!is.null(input$sample_site_filter_input) && length(input$sample_site_filter_input) > 0) {
-        filtered_data <- filtered_data[filtered_data$Sample_Site %in% input$sample_site_filter_input, ]  # Filter by sample site
-      }
-      if (!is.null(input$group_filter_input) && length(input$group_filter_input) > 0) {
-        filtered_data <- filtered_data[filtered_data$Group %in% input$group_filter_input, ]  # Filter by group
-      }
-      if (!is.null(input$dataset_filter_input) && length(input$dataset_filter_input) > 0) {
-        filtered_data <- filtered_data[filtered_data$Dataset_ID %in% input$dataset_filter_input, ]  # Filter by dataset
-      }
+      # Use shared reactive for filtered data
+      filtered_data <- filtered_samples()
       
       # Then select the columns to display
       displayed_sample_data <- filtered_data[, input$selected_sample_columns, drop = FALSE]
@@ -264,7 +370,22 @@ server <- function(input, output, session) {
                       scrollX = TRUE,    # Enable horizontal scrolling
                       scrollY = "75vh",  # Set vertical scroll height
                       dom = 'tip',       # Display table information and pagination
-                      buttons = c('csv', 'excel', 'pdf')  # Export options
+                      buttons = c('csv', 'excel', 'pdf'),  # Export options
+                       deferRender = TRUE,  # Faster initial draw
+                       processing = TRUE,    # Show processing indicator
+                       columnDefs = list(list(
+                         targets = "_all",
+                         render = DT::JS(
+                           "function(data, type, row, meta) {",
+                           "  if (type === 'display') {",
+                           "    if (data === null || data === undefined || data === '') {",
+                           "      return 'NA';",
+                           "    }",
+                           "  }",
+                           "  return data;",
+                           "}"
+                         )
+                       ))
                     ),
                     class = "display compact nowrap hover",  # Table styling
                     rownames = FALSE,  # Do not display row names
@@ -273,23 +394,41 @@ server <- function(input, output, session) {
       )
     }
   })
+
+  # Download handlers for filtered tables
+  output$download_datasets_table <- downloadHandler(
+    filename = function() {
+      "datasets_filtered.csv"
+    },
+    content = function(file) {
+      if (!is.null(included_datasets) && !is.null(input$selected_columns)) {
+        data <- included_datasets[, input$selected_columns, drop = FALSE]
+        write.csv(data, file, row.names = FALSE)
+      } else {
+        write.csv(data.frame(), file, row.names = FALSE)
+      }
+    }
+  )
+  
+  output$download_samples_table <- downloadHandler(
+    filename = function() {
+      "samples_filtered.csv"
+    },
+    content = function(file) {
+      if (!is.null(included_samples) && !is.null(input$selected_sample_columns)) {
+        data <- filtered_samples()[, input$selected_sample_columns, drop = FALSE]
+        write.csv(data, file, row.names = FALSE)
+      } else {
+        write.csv(data.frame(), file, row.names = FALSE)
+      }
+    }
+  )
   
   # Render summary for filtered samples
   output$filtered_samples_summary <- renderUI({
     if (!is.null(included_samples)) {
-      # Start with the full data
-      filtered_data <- included_samples
-      
-      # Apply filters based on user selections
-      if (!is.null(input$sample_site_filter_input) && length(input$sample_site_filter_input) > 0) {
-        filtered_data <- filtered_data[filtered_data$Sample_Site %in% input$sample_site_filter_input, ]  # Filter by sample site
-      }
-      if (!is.null(input$group_filter_input) && length(input$group_filter_input) > 0) {
-        filtered_data <- filtered_data[filtered_data$Group %in% input$group_filter_input, ]  # Filter by group
-      }
-      if (!is.null(input$dataset_filter_input) && length(input$dataset_filter_input) > 0) {
-        filtered_data <- filtered_data[filtered_data$Dataset_ID %in% input$dataset_filter_input, ]  # Filter by dataset
-      }
+      # Use shared reactive for filtered data
+      filtered_data <- filtered_samples()
       
       # Check the number of samples
       num_samples <- nrow(filtered_data)
@@ -385,7 +524,7 @@ server <- function(input, output, session) {
   output$plot1 <- renderPlot({
     if (!is.null(included_samples)) {
       # Filter to diagnosed celiac samples
-      plot1_data <- included_samples[included_samples$Diagnosed_Celiac == TRUE, ]
+      plot1_data <- celiac_samples()
       
       # Extract 'Month_of_Publication' and remove NAs
       month_pub <- na.omit(plot1_data$Month_of_Publication)
@@ -393,6 +532,8 @@ server <- function(input, output, session) {
       # Extract year suffix and construct full year
       year_suffix <- substr(month_pub, 5, 6)
       year_full <- as.numeric(paste0("20", year_suffix))
+      
+      validate(need(length(year_full) > 0, "No celiac samples with publication dates to plot."))
       
       # Create data frame and count samples per year
       plot1_df <- data.frame(Year = year_full)
@@ -412,14 +553,16 @@ server <- function(input, output, session) {
       counts_per_year$CumulativeCount <- cumsum(counts_per_year$Count)
       
       # Plot
-      ggplot(counts_per_year, aes(x = Year, y = CumulativeCount)) +
-        geom_line(color = COLORS$PRIMARY, size = 1) +  # Line color and size
-        geom_point(color = COLORS$PRIMARY, size = 2) +  # Point color and size
-        labs(
-          x = "Year of Publication",
-          y = "Cumulative Number of Samples"
-        ) +
-        theme_minimal()  # Minimal theme for the plot
+      {
+        p <- ggplot(counts_per_year, aes(x = Year, y = CumulativeCount)) +
+          labs(x = "Year of Publication", y = "Cumulative Number of Samples") +
+          theme_minimal()
+        if (nrow(counts_per_year) >= 2) {
+          p + geom_line(color = COLORS$PRIMARY, size = 1) + geom_point(color = COLORS$PRIMARY, size = 2)
+        } else {
+          p + geom_point(color = COLORS$PRIMARY, size = 2)
+        }
+      }
     }
   })
   
@@ -430,7 +573,7 @@ server <- function(input, output, session) {
     },
     content = function(file) {
       # Generate the data for Plot 1
-      plot1_data <- included_samples[included_samples$Diagnosed_Celiac == TRUE, ]
+      plot1_data <- celiac_samples()
       month_pub <- na.omit(plot1_data$Month_of_Publication)
       year_suffix <- substr(month_pub, 5, 6)
       year_full <- as.numeric(paste0("20", year_suffix))
@@ -443,18 +586,17 @@ server <- function(input, output, session) {
   output$plot2 <- renderPlot({
     if (!is.null(included_samples)) {
       # Filter to diagnosed celiac samples
-      plot2_data <- included_samples[included_samples$Diagnosed_Celiac == TRUE, ]
+      plot2_data <- celiac_samples()
       
       # Extract 'Sample_Site' and remove NAs
       sample_site <- na.omit(plot2_data$Sample_Site)
-      
-      # Capitalize first letter of each sample site
       sample_site <- stringr::str_to_title(sample_site)
       
-      # Count occurrences and sort
-      sample_site_counts <- as.data.frame(table(sample_site))  # Count samples per site
-      colnames(sample_site_counts) <- c("SampleSite", "Count")
-      sample_site_counts <- sample_site_counts[order(-sample_site_counts$Count), ]  # Sort by count
+      # Count occurrences robustly and sort
+      sample_site_counts <- data.frame(SampleSite = sample_site) %>%
+        dplyr::count(SampleSite, name = "Count", sort = TRUE)
+      
+      validate(need(nrow(sample_site_counts) > 0, "No sample-site data to display."))
       
       # Plot
       ggplot(sample_site_counts, aes(x = reorder(SampleSite, -Count), y = Count)) +
@@ -476,10 +618,11 @@ server <- function(input, output, session) {
     },
     content = function(file) {
       # Generate the data for Plot 2
-      plot2_data <- included_samples[included_samples$Diagnosed_Celiac == TRUE, ]
+      plot2_data <- celiac_samples()
       sample_site <- na.omit(plot2_data$Sample_Site)
-      sample_site <- stringr::str_to_title(sample_site)  # Capitalize first letter
-      sample_site_counts <- as.data.frame(table(sample_site))  # Count samples per site
+      sample_site <- stringr::str_to_title(sample_site)
+      sample_site_counts <- data.frame(SampleSite = sample_site) %>%
+        dplyr::count(SampleSite, name = "Count", sort = TRUE)
       write.csv(sample_site_counts, file, row.names = FALSE)  # Write to CSV
     }
   )
@@ -497,24 +640,43 @@ server <- function(input, output, session) {
       country_counts <- as.data.frame(table(country_data))  # Count samples per country
       colnames(country_counts) <- c("Country", "Count")
       
-      # Get world map data
-      world_map <- ne_countries(scale = "medium", returnclass = "sf")
+      # Get world map data (cached)
+      world_map <- world_map_sf
+      validate(need(!is.null(world_map), "Map data unavailable."))
       
       # Merge country counts with map data
-      country_counts$iso_a3 <- countrycode(country_counts$Country, "country.name", "iso3c")  # Convert country names to ISO codes
+      country_counts$iso_a3 <- countrycode(
+        country_counts$Country,
+        "country.name",
+        "iso3c",
+        custom_match = c(
+          "England" = "GBR",
+          "Scotland" = "GBR",
+          "Wales" = "GBR",
+          "Northern Ireland" = "GBR"
+        )
+      )  # Convert country names to ISO codes with custom matches
       country_counts <- country_counts[!is.na(country_counts$iso_a3), ]  # Remove NAs
       map_data <- left_join(world_map, country_counts, by = c("iso_a3"))  # Join map data with counts
       map_data$Count[is.na(map_data$Count)] <- 0  # Replace NAs with 0
       
       # Plot
-      ggplot(map_data) +
-        geom_sf(aes(geometry = geometry), fill = COLORS$BACKGROUND, color = COLORS$TEXT) +  # Base map
-        geom_point(data = map_data[map_data$Count > 0, ], aes(size = Count, geometry = geometry),
-                   color = COLORS$PRIMARY, stat = "sf_coordinates") +  # Points for sample counts
-        scale_size_continuous(range = c(2, 10), guide = FALSE) +  # Size scale for points
-        labs(x = "", y = "") +
-        theme_minimal() +
-        theme(axis.text = element_blank(), axis.ticks = element_blank())  # Remove axis text and ticks
+      {
+        # Compute centroids in a projected CRS for more reliable points
+        centroids <- sf::st_centroid(sf::st_transform(map_data, 3857))
+        centroids <- sf::st_transform(centroids, 4326)
+        coords <- sf::st_coordinates(centroids)
+        points_df <- data.frame(lon = coords[, 1], lat = coords[, 2], Count = map_data$Count)
+        points_df <- points_df[points_df$Count > 0, ]
+        
+        ggplot(map_data) +
+          geom_sf(aes(geometry = geometry), fill = COLORS$BACKGROUND, color = COLORS$TEXT) +  # Base map
+          geom_point(data = points_df, aes(x = lon, y = lat, size = Count), color = COLORS$PRIMARY) +
+          scale_size_continuous(range = c(2, 10), guide = FALSE) +  # Size scale for points
+          labs(x = "", y = "") +
+          theme_minimal() +
+          theme(axis.text = element_blank(), axis.ticks = element_blank())  # Remove axis text and ticks
+      }
     }
   })
   
@@ -535,7 +697,7 @@ server <- function(input, output, session) {
   output$plot4 <- renderPlot({
     if (!is.null(included_samples)) {
       # Filter samples with "16S" in Sequencing_Type
-      plot4_data <- included_samples[grepl("16S", included_samples$Sequencing_Type, ignore.case = TRUE), ]
+      plot4_data <- samples_16s()
       
       # Extract 'Amplicon_Region' and remove NAs
       amplicon_region <- na.omit(plot4_data$Amplicon_Region)
@@ -564,7 +726,7 @@ server <- function(input, output, session) {
     },
     content = function(file) {
       # Generate the data for Plot 4
-      plot4_data <- included_samples[grepl("16S", included_samples$Sequencing_Type, ignore.case = TRUE), ]
+      plot4_data <- samples_16s()
       amplicon_region <- na.omit(plot4_data$Amplicon_Region)  # Extract amplicon regions
       amplicon_counts <- as.data.frame(table(amplicon_region))  # Count samples per amplicon region
       colnames(amplicon_counts) <- c("AmpliconRegion", "Count")
@@ -581,6 +743,8 @@ server <- function(input, output, session) {
           included_samples$Diagnosed_Celiac %in% c(TRUE, FALSE), 
       ]
       
+      validate(need(nrow(plot5_data) > 0, "No data available for this table with current filters."))
+      
       # Create contingency table
       table_data <- table(
         GlutenFreeDiet = ifelse(plot5_data$Gluten_Free_Diet, "Gluten-free", "Non-gluten-free"),
@@ -589,6 +753,9 @@ server <- function(input, output, session) {
       
       # Convert table to data frame for plotting
       df_table <- as.data.frame.matrix(table_data)  # Convert to data frame
+      # Ensure both columns exist even if one level is absent
+      if (!"Celiac" %in% colnames(df_table)) df_table$Celiac <- 0L
+      if (!"Healthy" %in% colnames(df_table)) df_table$Healthy <- 0L
       df_table$Group <- rownames(df_table)  # Add group names as a column
       df_table <- df_table[, c("Group", "Celiac", "Healthy")]  # Reorder columns
       
@@ -613,7 +780,10 @@ server <- function(input, output, session) {
         GlutenFreeDiet = ifelse(plot5_data$Gluten_Free_Diet, "Gluten-free", "Non-gluten-free"),
         DiagnosedCeliac = ifelse(plot5_data$Diagnosed_Celiac, "Celiac", "Healthy")
       )
-      write.csv(as.data.frame.matrix(table_data), file, row.names = TRUE)  # Write to CSV
+      df_out <- as.data.frame.matrix(table_data)
+      if (!"Celiac" %in% colnames(df_out)) df_out$Celiac <- 0L
+      if (!"Healthy" %in% colnames(df_out)) df_out$Healthy <- 0L
+      write.csv(df_out, file, row.names = TRUE)  # Write to CSV
     }
   )
   
@@ -626,7 +796,7 @@ server <- function(input, output, session) {
       # Prepare data for plotting
       plot6_counts <- plot6_data %>%
         group_by(Dataset_ID, Group_Prospective_Study) %>%
-        summarise(Count = n()) %>%
+        summarise(Count = n(), .groups = "drop") %>%
         ungroup()  # Count samples per dataset and group
       
       # Map 'Group_Prospective_Study' to readable labels and colors
@@ -659,7 +829,7 @@ server <- function(input, output, session) {
       plot6_data <- included_samples[included_samples$Group_Prospective_Study %in% c("non-CD", "CD"), ]
       plot6_counts <- plot6_data %>%
         group_by(Dataset_ID, Group_Prospective_Study) %>%
-        summarise(Count = n()) %>%
+        summarise(Count = n(), .groups = "drop") %>%
         ungroup()  # Count samples per dataset and group
       write.csv(plot6_counts, file, row.names = FALSE)  # Write to CSV
     }

@@ -8,8 +8,8 @@ by first ensuring all downloads are successful before replacing any existing fil
 Files downloaded:
  - `included_datasets.tsv` - Contains all datasets that were included in the current version.
  - `excluded_datasets.tsv` - Contains all datasets/studies that were not able to be included despite being eligible.
- - `all_samples.tsv` - Contains all samples in the datasets in `included_datasets.tsv`.
- - `low_read_samples.tsv` - Contains all samples in `all_samples.tsv` with final read counts after DADA2 less than 1,000.
+ - `all_samples.tsv`       - Contains all samples in the datasets in `included_datasets.tsv`.
+ - `low_read_samples.tsv`  - Contains all samples in `all_samples.tsv` with final read counts after DADA2 less than 1,000.
 """
 
 
