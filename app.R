@@ -198,12 +198,6 @@ server <- function(input, output, session) {
   if (file.exists("repo_data/included_datasets.tsv")) {
     included_datasets <- read_tsv_robust("repo_data/included_datasets.tsv")
     
-    # TEMPORARY: Ignore the datasets 16S_22_Ozturk and 16S_101_Roque
-    if ("Dataset_ID" %in% names(included_datasets)) {
-      included_datasets <- included_datasets[
-        !(included_datasets$Dataset_ID %in% c("16S_22_Ozturk", "16S_101_Roque")),
-      ]
-    }
     
     # Update the column choices for datasets dynamically
     updateCheckboxGroupInput(session, "selected_columns",
@@ -214,13 +208,6 @@ server <- function(input, output, session) {
   # Load the samples file if it exists
   if (file.exists("repo_data/all_samples.tsv")) {
     included_samples <- read_tsv_robust("repo_data/all_samples.tsv")
-    
-    # TEMPORARY: Ignore the datasets 16S_22_Ozturk and 16S_101_Roque
-    if ("Dataset_ID" %in% names(included_samples)) {
-      included_samples <- included_samples[
-        !(included_samples$Dataset_ID %in% c("16S_22_Ozturk", "16S_101_Roque")),
-      ]
-    }
     
     # Best-effort coercion of logical-like columns
     if ("Diagnosed_Celiac" %in% names(included_samples)) {
