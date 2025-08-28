@@ -18,7 +18,7 @@ The Celiac Microbiome Repository (CMR) is the best effort to comprehensively com
 ## Requirements & Licenses
 
 ## Project License
-This project is licensed under the **GNU General Public License v3.0 (GPL-3)** to ensure compatibility.
+This code for this project is licensed under the **GNU General Public License v3.0 (GPL-3)** to ensure compatibility.
 
 ### R Dependencies
 - **shiny**: [GPL-3](https://github.com/rstudio/shiny/blob/main/LICENSE)
