@@ -1,0 +1,40 @@
+:root {
+    --primary-color: #d9ad6c;
+    --primary-color-dark: #c29a5c;
+    --text-light: #ffffff;
+    --text-hover: #f2f2f2;
+}
+
+body {
+    padding-top: 60px;
+    font-family: 'Ubuntu', sans-serif;
+}
+
+.navbar-default {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.navbar-default .navbar-brand, .navbar-default .navbar-nav > li > a {
+    color: var(--text-light);
+}
+
+.navbar-default .navbar-brand:hover, .navbar-default .navbar-nav > li > a:hover {
+    color: var(--text-hover);
+}
+
+.navbar-default .navbar-nav > .active > a,
+.navbar-default .navbar-nav > .active > a:focus,
+.navbar-default .navbar-nav > .active > a:hover {
+    background-color: var(--primary-color-dark);
+    color: var(--text-light);
+}
+
+.custom-sidebar {
+    overflow-y: auto;
+    max-height: 80vh;
+}
+
+h4 {
+    font-weight: bold;
+}
