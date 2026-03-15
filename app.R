@@ -9,6 +9,10 @@ COLORS <- list(
   TEXT = "white"             # Text color
 )
 
+# Plotting constants
+PLOT_BASE_SIZE <- 22         # Base font size for plots
+ANNOTATE_SIZE <- 11          # Size for ggplot2 annotate text
+
 # Load necessary libraries for the application
 library(markdown)        # For rendering Markdown content
 library(shiny)           # For building the Shiny web application
@@ -24,6 +28,23 @@ library(countrycode)     # For converting country names to codes
 library(grid)            # For grid graphics
 library(gridExtra)       # For arranging multiple grid graphics
 library(reshape2)        # For reshaping data
+library(jsonlite)        # For reading version info
+library(scales)          # For formatting axis labels
+library(plotly)          # For interactive plots with hover
+
+# Load version and metadata from JSON
+VERSION_INFO <- list(
+  number = "",
+  lit_search_date = ""
+)
+
+if (file.exists("repo_data/latest_version.json")) {
+  try({
+    json_data <- jsonlite::fromJSON("repo_data/latest_version.json")
+    VERSION_INFO$number <- sprintf("%.1f", as.numeric(json_data$latest_version_number))
+    VERSION_INFO$lit_search_date <- json_data$latest_lit_search_date
+  }, silent = TRUE)
+}
 
 # Define default columns to display for datasets and samples
 # ALL: Dataset_ID	Bioproject_ID	Record_Link	Publication_Title	Publication_Link	Month_Of_Publication	DOI	Used_In_Previous_Meta_Analysis	Lit_Search_Source	Data_Source	Sequencing_Type	Sequencing_Technology	Prospective_Study	Sample_Sites	Amplicon_Region	Forward_Primer	Reverse_Primer	DNA_Extraction_Kit	Read_Pairing	Trimming_Of_Reads_After_Acquisition	Bowtie2_Alignment_Sensitivity	Host_Genome_Index	MetaPhlAn_Database	Fw_Read_Trim_Position	Rv_Read_Trim_Position	ASV_Table_Length_Filter	Notes_From_Processing	Age_Range	Num_Samples	Num_Individuals	Num_Celiac_Samples	Num_GFD_Samples	Num_Prospective_Celiac_Samples	Longitudinal_Study	Country	Samples_With_Significant_Factors	Prospective_Studies	Shotgun_Studies	Study_Design_Description	Multiple_Publications
@@ -32,10 +53,10 @@ DEFAULT_DATA_SET_COLUMNS <- c(
   "Country", "Num_Samples", "Num_Celiac_Samples", 
   "Num_Prospective_Celiac_Samples", "Study_Design_Description"
 )
-# ALL: SRA_Run_ID	Sample_ID	Dataset_ID	SRA_Project_ID	Month_of_Publication	Publication_DOI	Sequencing_Type	Amplicon_Region	Num_Reads_Nonchim	Percent_Host_Reads_Removed	Total_Pairs_Pre_Host_Removal	Seq_Tech	DNA_Ext_Kit	Paired_Reads	Sample_Site	Diagnosed_Celiac	Gluten_Free_Diet	Group	Will_Develop_Celiac	Group_Prospective_Study	Short_term_Gluten_Challenge	NCGS	Other_Autoimmune	Hookworm	Possible_Celiac	Any_Significant_Factor	Country	Age	Sex
+# ALL: SRA_Run_ID	Sample_ID	Dataset_ID	SRA_Project_ID	Month_of_Publication	Publication_DOI	Sequencing_Type	Amplicon_Region	Num_Reads_Nonchim	Percent_Host_Reads_Removed	Total_Pairs_Pre_Host_Removal	Seq_Tech	DNA_Ext_Kit	Paired_Reads	Sample_Site	Diagnosed_Celiac	Gluten_Free_Diet	Will_Develop_Celiac	Group	Short_term_Gluten_Challenge	NCGS	Other_Autoimmune	Hookworm	Possible_Celiac	Any_Significant_Factor	Country	Age	Sex
 DEFAULT_SAMPLE_COLUMNS <- c(
   "Sample_ID", "Dataset_ID", "Sequencing_Type", "Amplicon_Region", 
-  "Seq_Tech", "Sample_Site", "Group", "Group_Prospective_Study", "Country"
+  "Seq_Tech", "Sample_Site", "Group", "Country"
   
 )
 
@@ -60,7 +81,7 @@ ui <- fluidPage(
   
   # Create the main navigation bar for the app's interface
   navbarPage(
-    title = "Celiac Microbiome Repo (v1.0)",  # Title of the web app
+    title = sprintf("Celiac Microbiome Repo (v%s)", VERSION_INFO$number),  # Title of the web app
     windowTitle = "Celiac Repository",  # Title that appears in the browser's UI
     position = "fixed-top",              # Set the navbar to fixed-top
 
@@ -70,20 +91,28 @@ ui <- fluidPage(
              tags$div(
                class = c("about-tab-content"),
                style = "max-width: 750px; margin: 0 auto;",
-               # Include Markdown content for the About tab
-               includeMarkdown("www/tab_about.md")
+               # Render Markdown content for the About tab with dynamic version/date
+               HTML(markdown::markdownToHTML(
+                 text = {
+                   md_content <- paste(readLines("www/tab_about.md", warn = FALSE), collapse = "\n")
+                   md_content <- gsub("{{VERSION}}", VERSION_INFO$number, md_content, fixed = TRUE)
+                   md_content <- gsub("{{DATE}}", VERSION_INFO$lit_search_date, md_content, fixed = TRUE)
+                   md_content
+                 },
+                 fragment.only = TRUE
+               ))
              )
     ), 
 
-    tabPanel("Publication",
-             # Div containing all contents, styled by help-tab-content
-             tags$div(
-               class = c("about-tab-content"),
-               style = "max-width: 750px; margin: 0 auto;",
-               # Include Markdown content for the Publication tab
-               includeMarkdown("www/tab_publication.md")
-             )
-    ), 
+    # tabPanel("Publication",
+    #          # Div containing all contents, styled by help-tab-content
+    #          tags$div(
+    #            class = c("about-tab-content"),
+    #            style = "max-width: 750px; margin: 0 auto;",
+    #            # Include Markdown content for the Publication tab
+    #            includeMarkdown("www/tab_publication.md")
+    #          )
+    # ), 
     
     tabPanel("Datasets",
              sidebarLayout(
@@ -96,6 +125,7 @@ ui <- fluidPage(
                    choices = NULL,  # Choices will be updated based on the dataset
                    selected = DEFAULT_DATA_SET_COLUMNS  # Default selected columns
                  ),
+                 actionButton("show_all_columns", "Show all columns", class = "btn-xs"),
                  width = 3,
                  class = "custom-sidebar"  # Custom styling for the sidebar
                ),
@@ -114,15 +144,19 @@ ui <- fluidPage(
              sidebarLayout(
                sidebarPanel(
                  # Dynamic summary of filtered data
-                 h4("Filtered Summary"),
+                 h4("Summary of Samples"),
                  uiOutput("filtered_samples_summary"),  # Output for filtered summary
                  br(),
                  
-                 # Filter options for samples
-                 h4("Filter Samples"),
-                 uiOutput("sample_site_filter"),  # UI for sample site filter
-                 uiOutput("group_filter"),         # UI for group filter
-                 uiOutput("dataset_filter"),       # UI for dataset filter
+                # Filter options for samples
+                h4("Filter Samples"),
+                uiOutput("sample_site_filter"),   # UI for sample site filter
+                uiOutput("group_filter"),         # UI for group filter
+                uiOutput("dataset_filter"),       # UI for dataset filter
+                uiOutput("seq_type_filter"),      # UI for sequencing type filter
+                uiOutput("amplicon_region_filter"),  # UI for amplicon region filter
+                uiOutput("seq_tech_filter"),      # UI for sequencing technology filter
+                uiOutput("any_sig_factor_filter"),  # UI for any significant factor filter
                  br(),
                  
                  # Filter options for sample columns
@@ -133,6 +167,7 @@ ui <- fluidPage(
                    choices = NULL,  # Choices will be updated based on the samples data
                    selected = DEFAULT_SAMPLE_COLUMNS  # Default selected columns
                  ),
+                 actionButton("show_all_sample_columns", "Show all columns", class = "btn-xs"),
                  width = 3,
                  class = "custom-sidebar"  # Custom styling for the sidebar
                ),
@@ -140,6 +175,11 @@ ui <- fluidPage(
                  h3("Samples"),
                  downloadButton("download_samples_table", "Download Filtered Table"),
                  DT::dataTableOutput("samples_table"),  # Output for samples table
+                 br(),
+                 hr(),
+
+                 # Samples Tab Plots After Sampling Filtering
+                 uiOutput("samples_plot_grid"),
                  width = 9,
                  class = "custom-main"  # Custom styling for the main panel
                )
@@ -154,6 +194,21 @@ ui <- fluidPage(
                  h3("Plots"),
                  uiOutput("plot_grid")
                )
+             )
+    ),
+
+    tabPanel("Metadata",
+             tags$div(
+               class = c("about-tab-content"),
+               style = "max-width: 750px; margin: 0 auto;",
+               HTML(markdown::markdownToHTML(
+                 text = {
+                   md_content <- paste(readLines("www/tab_metadata.md", warn = FALSE), collapse = "\n")
+                   md_content <- gsub("{{VERSION}}", VERSION_INFO$number, md_content, fixed = TRUE)
+                   md_content
+                 },
+                 fragment.only = TRUE
+               ))
              )
     )
   )
@@ -190,6 +245,25 @@ server <- function(input, output, session) {
     as.logical(y)
   }
   
+  # Parse "Mon-YY" to a sortable key (YYYYMM) for stable ordering in DT tables.
+  month_sort_key <- function(x) {
+    x_chr <- trimws(as.character(x))
+    x_chr[x_chr == ""] <- NA
+    month_map <- c(
+      jan = 1, feb = 2, mar = 3, apr = 4, may = 5, jun = 6,
+      jul = 7, aug = 8, sep = 9, oct = 10, nov = 11, dec = 12
+    )
+    pieces <- strsplit(x_chr, "-", fixed = TRUE)
+    month_part <- vapply(pieces, function(p) if (length(p) >= 1) p[1] else NA_character_, character(1))
+    year_part <- vapply(pieces, function(p) if (length(p) >= 2) p[2] else NA_character_, character(1))
+    month_num <- month_map[tolower(substr(month_part, 1, 3))]
+    year_num <- suppressWarnings(as.integer(year_part))
+    year_num <- ifelse(!is.na(year_num) & year_num < 100, 2000 + year_num, year_num)
+    sort_key <- year_num * 100 + month_num
+    sort_key[is.na(month_num) | is.na(year_num)] <- NA
+    sort_key
+  }
+  
   included_datasets <- NULL  # Initialize variable for datasets
   included_samples <- NULL    # Initialize variable for samples
   world_map_sf <- NULL        # Cache for Natural Earth world map
@@ -216,26 +290,54 @@ server <- function(input, output, session) {
     if ("Gluten_Free_Diet" %in% names(included_samples)) {
       included_samples$Gluten_Free_Diet <- to_logical(included_samples$Gluten_Free_Diet)
     }
+    if ("Any_Significant_Factor" %in% names(included_samples)) {
+      included_samples$Any_Significant_Factor <- to_logical(included_samples$Any_Significant_Factor)
+    }
     
     # Update the column choices for samples dynamically
     updateCheckboxGroupInput(session, "selected_sample_columns",
                              choices = colnames(included_samples),
                              selected = DEFAULT_SAMPLE_COLUMNS)
     
+    # Render the Sequencing Type filter UI
+    output$seq_type_filter <- renderUI({
+      selectInput("seq_type_filter_input",
+                  "Sequencing Type:",
+                  choices = c("Shotgun" = "SG", "16S" = "16S"),
+                  selected = NULL,
+                  multiple = TRUE)
+    })
+
     # Render the Sample Site filter UI
     output$sample_site_filter <- renderUI({
+      sites <- unique(included_samples$Sample_Site)
+      # Create named vector for choices: labels are capitalized, values remain original
+      site_choices <- setNames(sites, stringr::str_to_title(sites))
+      
       selectInput("sample_site_filter_input",
                   "Sample Site:",
-                  choices = unique(included_samples$Sample_Site),  # Unique sample sites
+                  choices = site_choices,  # Unique capitalized sample sites
                   selected = NULL,
                   multiple = TRUE)  # Allow multiple selections
     })
     
     # Render the Group filter UI
     output$group_filter <- renderUI({
+      # Define preferred order and labels for groups
+      group_choices <- c("Healthy Control (HC)" = "HC",
+                         "Active Celiac Disease (ACD)" = "ACD",
+                         "Treated Celiac Disease (TCD)" = "TCD",
+                         "Treated Healthy Control (HC_GFD)" = "HC_GFD",
+                         "Prospective Celiac Disease (PCD)" = "PCD",
+                         "Prospective Healthy Control (PHC)" = "PHC")
+      
+      # Filter to only include groups present in the data
+      available_groups <- unique(included_samples$Group)
+      group_choices <- group_choices[group_choices %in% available_groups]
+      
       selectInput("group_filter_input",
-                  "Group:",
-                  choices = unique(included_samples$Group),  # Unique groups
+                  "Analysis Group:",
+                  choices = group_choices,
                   selected = NULL,
                   multiple = TRUE)  # Allow multiple selections
     })
@@ -248,7 +350,65 @@ server <- function(input, output, session) {
                   selected = NULL,
                   multiple = TRUE)  # Allow multiple selections
     })
+
+    # Render the Amplicon Region filter UI
+    output$amplicon_region_filter <- renderUI({
+      if (!"Amplicon_Region" %in% names(included_samples)) return(NULL)
+      regions <- unique(included_samples$Amplicon_Region)
+      regions <- regions[!is.na(regions) & regions != ""]
+
+      selectInput("amplicon_region_filter_input",
+                  "Amplicon Region:",
+                  choices = regions,
+                  selected = NULL,
+                  multiple = TRUE)
+    })
+
+    # Render the Sequencing Technology filter UI
+    output$seq_tech_filter <- renderUI({
+      if (!"Seq_Tech" %in% names(included_samples)) return(NULL)
+      techs <- unique(included_samples$Seq_Tech)
+      techs <- techs[!is.na(techs) & techs != ""]
+
+      selectInput("seq_tech_filter_input",
+                  "Sequencing Technology:",
+                  choices = techs,
+                  selected = NULL,
+                  multiple = TRUE)
+    })
+
+    # Render the Any Significant Factor filter UI
+    output$any_sig_factor_filter <- renderUI({
+      if (!"Any_Significant_Factor" %in% names(included_samples)) return(NULL)
+      sig_values <- unique(included_samples$Any_Significant_Factor)
+      sig_values <- sig_values[!is.na(sig_values)]
+
+      if (length(sig_values) == 0) return(NULL)
+      choices <- c("Yes" = TRUE, "No" = FALSE)
+      choices <- choices[choices %in% sig_values]
+
+      selectInput("any_sig_factor_filter_input",
+                  "Any Significant Factor:",
+                  choices = choices,
+                  selected = NULL,
+                  multiple = TRUE)
+    })
   }
+
+  # Observers for "Show all columns" buttons
+  observeEvent(input$show_all_columns, {
+    if (!is.null(included_datasets)) {
+      updateCheckboxGroupInput(session, "selected_columns",
+                               selected = colnames(included_datasets))
+    }
+  })
+  
+  observeEvent(input$show_all_sample_columns, {
+    if (!is.null(included_samples)) {
+      updateCheckboxGroupInput(session, "selected_sample_columns",
+                               selected = colnames(included_samples))
+    }
+  })
 
   # Cache world map once per session for Plot 3
   world_map_sf <- tryCatch({
@@ -259,6 +419,9 @@ server <- function(input, output, session) {
   filtered_samples <- reactive({
     if (is.null(included_samples)) return(NULL)
     data <- included_samples
+    if (!is.null(input$seq_type_filter_input) && length(input$seq_type_filter_input) > 0) {
+      data <- data[data$Sequencing_Type %in% input$seq_type_filter_input, ]  # Filter by sequencing type
+    }
     if (!is.null(input$sample_site_filter_input) && length(input$sample_site_filter_input) > 0) {
       data <- data[data$Sample_Site %in% input$sample_site_filter_input, ]  # Filter by sample site
     }
@@ -267,6 +430,15 @@ server <- function(input, output, session) {
     }
     if (!is.null(input$dataset_filter_input) && length(input$dataset_filter_input) > 0) {
       data <- data[data$Dataset_ID %in% input$dataset_filter_input, ]  # Filter by dataset
+    }
+    if (!is.null(input$amplicon_region_filter_input) && length(input$amplicon_region_filter_input) > 0) {
+      data <- data[data$Amplicon_Region %in% input$amplicon_region_filter_input, ]  # Filter by amplicon region
+    }
+    if (!is.null(input$seq_tech_filter_input) && length(input$seq_tech_filter_input) > 0) {
+      data <- data[data$Seq_Tech %in% input$seq_tech_filter_input, ]  # Filter by sequencing technology
+    }
+    if (!is.null(input$any_sig_factor_filter_input) && length(input$any_sig_factor_filter_input) > 0) {
+      data <- data[data$Any_Significant_Factor %in% input$any_sig_factor_filter_input, ]  # Filter by significant factor
     }
     data
   })
@@ -303,6 +475,31 @@ server <- function(input, output, session) {
           displayed_data$Record_Link
         )
       }
+      column_defs <- list(list(
+        targets = "_all",
+        render = DT::JS(
+          "function(data, type, row, meta) {",
+          "  if (type === 'display') {",
+          "    if (data === null || data === undefined || data === '') {",
+          "      return 'NA';",
+          "    }",
+          "  }",
+          "  return data;",
+          "}"
+        )
+      ))
+      month_col_name <- "Month_Of_Publication"
+      month_col_index <- which(colnames(displayed_data) == month_col_name)
+      if (length(month_col_index) == 1) {
+        sort_col_name <- paste0(month_col_name, "_SortKey")
+        displayed_data[[sort_col_name]] <- month_sort_key(displayed_data[[month_col_name]])
+        sort_col_index <- which(colnames(displayed_data) == sort_col_name)
+        column_defs <- append(column_defs, list(
+          list(targets = sort_col_index - 1, visible = FALSE, searchable = FALSE),
+          list(targets = month_col_index - 1, orderData = sort_col_index - 1)
+        ))
+      }
+
       DT::datatable(displayed_data,
                     options = list(
                       pageLength = 50,  # Number of rows per page
@@ -313,19 +510,7 @@ server <- function(input, output, session) {
                       buttons = c('csv', 'excel', 'pdf'),  # Export options
                        deferRender = TRUE,  # Faster initial draw
                        processing = TRUE,    # Show processing indicator
-                       columnDefs = list(list(
-                         targets = "_all",
-                         render = DT::JS(
-                           "function(data, type, row, meta) {",
-                           "  if (type === 'display') {",
-                           "    if (data === null || data === undefined || data === '') {",
-                           "      return 'NA';",
-                           "    }",
-                           "  }",
-                           "  return data;",
-                           "}"
-                         )
-                       ))
+                       columnDefs = column_defs
                     ),
                     class = "display compact nowrap hover",  # Table styling
                     rownames = FALSE,  # Do not display row names
@@ -344,6 +529,31 @@ server <- function(input, output, session) {
       # Then select the columns to display
       displayed_sample_data <- filtered_data[, input$selected_sample_columns, drop = FALSE]
       
+      column_defs <- list(list(
+        targets = "_all",
+        render = DT::JS(
+          "function(data, type, row, meta) {",
+          "  if (type === 'display') {",
+          "    if (data === null || data === undefined || data === '') {",
+          "      return 'NA';",
+          "    }",
+          "  }",
+          "  return data;",
+          "}"
+        )
+      ))
+      month_col_name <- "Month_of_Publication"
+      month_col_index <- which(colnames(displayed_sample_data) == month_col_name)
+      if (length(month_col_index) == 1) {
+        sort_col_name <- paste0(month_col_name, "_SortKey")
+        displayed_sample_data[[sort_col_name]] <- month_sort_key(displayed_sample_data[[month_col_name]])
+        sort_col_index <- which(colnames(displayed_sample_data) == sort_col_name)
+        column_defs <- append(column_defs, list(
+          list(targets = sort_col_index - 1, visible = FALSE, searchable = FALSE),
+          list(targets = month_col_index - 1, orderData = sort_col_index - 1)
+        ))
+      }
+
       DT::datatable(displayed_sample_data,
                     options = list(
                       pageLength = 150,  # Number of rows per page
@@ -354,19 +564,7 @@ server <- function(input, output, session) {
                       buttons = c('csv', 'excel', 'pdf'),  # Export options
                        deferRender = TRUE,  # Faster initial draw
                        processing = TRUE,    # Show processing indicator
-                       columnDefs = list(list(
-                         targets = "_all",
-                         render = DT::JS(
-                           "function(data, type, row, meta) {",
-                           "  if (type === 'display') {",
-                           "    if (data === null || data === undefined || data === '') {",
-                           "      return 'NA';",
-                           "    }",
-                           "  }",
-                           "  return data;",
-                           "}"
-                         )
-                       ))
+                       columnDefs = column_defs
                     ),
                     class = "display compact nowrap hover",  # Table styling
                     rownames = FALSE,  # Do not display row names
@@ -419,18 +617,10 @@ server <- function(input, output, session) {
       } else {
         num_datasets <- length(unique(filtered_data$Dataset_ID))  # Count unique datasets
         
-        # Calculate the percentage of diagnosed celiac samples
-        celiac_values <- filtered_data$Diagnosed_Celiac
-        if (!is.null(celiac_values)) {
-          celiac_values <- celiac_values[celiac_values %in% c(TRUE, FALSE)]  # Keep only boolean values
-          if (length(celiac_values) > 0) {
-            celiac_percentage <- round(mean(celiac_values) * 100, 1)  # Calculate percentage
-          } else {
-            celiac_percentage <- NA
-          }
-        } else {
-          celiac_percentage <- NA
-        }
+        # Calculate counts for specific groups
+        acd_count <- sum(filtered_data$Group == "ACD", na.rm = TRUE)
+        tcd_count <- sum(filtered_data$Group == "TCD", na.rm = TRUE)
+        pcd_count <- sum(filtered_data$Group == "PCD", na.rm = TRUE)
         
         # Format numbers with commas
         num_samples_comma <- format(num_samples, big.mark = ",")
@@ -440,13 +630,11 @@ server <- function(input, output, session) {
         
         # Build the summary text
         summary_text <- paste(
-          "<p>Displayed are", num_samples_comma, samples_txt, num_datasets, datasets_txt
+          "<p>Displayed are", num_samples_comma, samples_txt, num_datasets, datasets_txt,
+          paste0("There are ", format(acd_count, big.mark = ","), " ACD samples, ", 
+                 format(tcd_count, big.mark = ","), " TCD samples and ", 
+                 format(pcd_count, big.mark = ","), " PCD samples.")
         )
-        if (!is.na(celiac_percentage)) {
-          summary_text <- paste0(summary_text, " ", celiac_percentage, "% of samples are diagnosed with celiac disease.")
-        } else {
-          summary_text <- paste(summary_text, "The percentage of samples diagnosed with celiac disease could not be calculated due to invalid values.")
-        }
         
         HTML(summary_text)  # Render the summary text as HTML
       }
@@ -514,7 +702,7 @@ server <- function(input, output, session) {
       year_suffix <- substr(month_pub, 5, 6)
       year_full <- as.numeric(paste0("20", year_suffix))
       
-      validate(need(length(year_full) > 0, "No celiac samples with publication dates to plot."))
+      shiny::validate(shiny::need(length(year_full) > 0, "No celiac samples with publication dates to plot."))
       
       # Create data frame and count samples per year
       plot1_df <- data.frame(Year = year_full)
@@ -577,7 +765,7 @@ server <- function(input, output, session) {
       sample_site_counts <- data.frame(SampleSite = sample_site) %>%
         dplyr::count(SampleSite, name = "Count", sort = TRUE)
       
-      validate(need(nrow(sample_site_counts) > 0, "No sample-site data to display."))
+      shiny::validate(shiny::need(nrow(sample_site_counts) > 0, "No sample-site data to display."))
       
       # Plot
       ggplot(sample_site_counts, aes(x = reorder(SampleSite, -Count), y = Count)) +
@@ -623,7 +811,7 @@ server <- function(input, output, session) {
       
       # Get world map data (cached)
       world_map <- world_map_sf
-      validate(need(!is.null(world_map), "Map data unavailable."))
+      shiny::validate(shiny::need(!is.null(world_map), "Map data unavailable."))
       
       # Merge country counts with map data
       country_counts$iso_a3 <- countrycode(
@@ -724,7 +912,7 @@ server <- function(input, output, session) {
           included_samples$Diagnosed_Celiac %in% c(TRUE, FALSE), 
       ]
       
-      validate(need(nrow(plot5_data) > 0, "No data available for this table with current filters."))
+      shiny::validate(shiny::need(nrow(plot5_data) > 0, "No data available for this table with current filters."))
       
       # Create contingency table
       table_data <- table(
@@ -771,18 +959,18 @@ server <- function(input, output, session) {
   # Plot 6: Sample Group Distributions for Prospective Studies
   output$plot6 <- renderPlot({
     if (!is.null(included_samples)) {
-      # Filter samples where 'Group_Prospective_Study' is 'non-CD' or 'CD'
-      plot6_data <- included_samples[included_samples$Group_Prospective_Study %in% c("non-CD", "CD"), ]
+      # Filter samples where 'Group' is 'PHC' or 'PCD'
+      plot6_data <- included_samples[included_samples$Group %in% c("PHC", "PCD"), ]
       
       # Prepare data for plotting
       plot6_counts <- plot6_data %>%
-        group_by(Dataset_ID, Group_Prospective_Study) %>%
+        group_by(Dataset_ID, Group) %>%
         summarise(Count = n(), .groups = "drop") %>%
         ungroup()  # Count samples per dataset and group
       
-      # Map 'Group_Prospective_Study' to readable labels and colors
+      # Map 'Group' to readable labels and colors
       plot6_counts$SampleGroup <- ifelse(
-        plot6_counts$Group_Prospective_Study == "CD", "Celiac", "Non-Celiac"
+        plot6_counts$Group == "PCD", "Celiac", "Non-Celiac"
       )
       
       # Plot
@@ -807,17 +995,437 @@ server <- function(input, output, session) {
     },
     content = function(file) {
       # Generate the data for Plot 6
-      plot6_data <- included_samples[included_samples$Group_Prospective_Study %in% c("non-CD", "CD"), ]
+      plot6_data <- included_samples[included_samples$Group %in% c("PHC", "PCD"), ]
       plot6_counts <- plot6_data %>%
-        group_by(Dataset_ID, Group_Prospective_Study) %>%
+        group_by(Dataset_ID, Group) %>%
         summarise(Count = n(), .groups = "drop") %>%
         ungroup()  # Count samples per dataset and group
       write.csv(plot6_counts, file, row.names = FALSE)  # Write to CSV
     }
   )
+
+  # Samples Tab Plots After Sampling Filtering ---------
+
+  # List of plot titles for the samples tab (after filtering)
+  samples_plot_titles <- c(
+    "All Dataset Sample Sizes (After Filters)",
+    "Number of Samples by Amplicon Region (After Filters)",
+    "Number of Datasets by Amplicon Region (After Filters)",
+    "Median Reads after DADA2 by Dataset (After Filters)",
+    "Number of Datasets by Sequencing Technology (After Filters)",
+    "Number of Datasets by Body Site (After Filters)",
+    "Number of Samples by Body Site (After Filters)",
+    "Analysis Group Distribution (After Filters)",
+    "Samples with Significant Factors by Dataset (After Filters)"
+  )
+
+  # Render the dynamic plot grid for the samples tab
+  output$samples_plot_grid <- renderUI({
+    num_plots <- length(samples_plot_titles)
+
+    # Generate the UI for each plot using bootstrap classes for responsiveness
+    plot_output_list <- lapply(1:num_plots, function(i) {
+      plotname <- paste0("samples_filter_plot", i)
+
+      # Use plotlyOutput for plot 9 (Significant Factors) for hover functionality
+      plot_ui <- if (i == 9) {
+        plotlyOutput(plotname, height = "900px")
+      } else {
+        plotOutput(plotname, height = "900px")
+      }
+
+      # Use column with responsive classes to change column count based on window width
+      tags$div(
+        class = "col-xs-12",
+        style = "margin-bottom: 30px; padding: 15px;",
+        tags$div(
+          style = "background: #f9f9f9; border: 1px solid #ddd; padding: 15px; border-radius: 4px; height: 100%;",
+          h4(samples_plot_titles[i], style = "margin-top: 0;"),
+          plot_ui
+        )
+      )
+    })
+
+    # Use a single fluidRow to allow bootstrap to wrap columns naturally
+    fluidRow(plot_output_list)
+  })
+
+  # Helper function for empty plot message
+  empty_plot_message <- function(msg = "No data to display after filtering") {
+    ggplot() +
+      annotate("text", x = 0.5, y = 0.5, label = msg, size = ANNOTATE_SIZE, color = "grey50") +
+      theme_void(base_size = PLOT_BASE_SIZE) +
+      theme(panel.background = element_rect(fill = "#f0f0f0", color = NA))
+  }
+
+  # Plot 1: Dataset sample sizes bar plot
+  output$samples_filter_plot1 <- renderPlot({
+    data <- filtered_samples()
+    if (is.null(data) || nrow(data) == 0) {
+      return(empty_plot_message())
+    }
+    
+    dataset_counts <- data %>%
+      group_by(Dataset_ID) %>%
+      summarise(Count = n(), .groups = "drop") %>%
+      arrange(desc(Count))
+    
+    if (nrow(dataset_counts) == 0) {
+      return(empty_plot_message())
+    }
+    
+    ggplot(dataset_counts, aes(x = reorder(Dataset_ID, -Count), y = Count)) +
+      geom_bar(stat = "identity", fill = COLORS$PRIMARY) +
+      geom_text(aes(label = Count), vjust = -0.5, size = ANNOTATE_SIZE * 0.5) +
+      labs(x = "Dataset ID", y = "Number of Samples") +
+      theme_minimal(base_size = PLOT_BASE_SIZE) +
+      theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+  })
+
+  # Plot 2: Samples by Amplicon Region (Shotgun first)
+  output$samples_filter_plot2 <- renderPlot({
+    data <- filtered_samples()
+    if (is.null(data) || nrow(data) == 0) {
+      return(empty_plot_message())
+    }
+    
+    # Create a combined column for sequencing type / amplicon region
+    data <- data %>%
+      mutate(Seq_Category = ifelse(Sequencing_Type == "SG", "Shotgun", 
+                                   ifelse(is.na(Amplicon_Region) | Amplicon_Region == "", "Unknown", Amplicon_Region)))
+    
+    seq_counts <- data %>%
+      group_by(Seq_Category) %>%
+      summarise(Count = n(), .groups = "drop")
+    
+    if (nrow(seq_counts) == 0) {
+      return(empty_plot_message())
+    }
+    
+    # Order with Shotgun first, then alphabetically
+    seq_counts$Seq_Category <- factor(seq_counts$Seq_Category, 
+                                       levels = c("Shotgun", sort(setdiff(unique(seq_counts$Seq_Category), "Shotgun"))))
+    
+    ggplot(seq_counts, aes(x = Seq_Category, y = Count)) +
+      geom_bar(stat = "identity", fill = COLORS$PRIMARY) +
+      geom_text(aes(label = Count), vjust = -0.5, size = ANNOTATE_SIZE * 0.5) +
+      labs(x = "Amplicon Region / Sequencing Type", y = "Number of Samples") +
+      theme_minimal(base_size = PLOT_BASE_SIZE) +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  })
+
+  # Plot 3: Datasets by Amplicon Region (Shotgun first)
+  output$samples_filter_plot3 <- renderPlot({
+    data <- filtered_samples()
+    if (is.null(data) || nrow(data) == 0) {
+      return(empty_plot_message())
+    }
+    
+    # Create a combined column for sequencing type / amplicon region
+    data <- data %>%
+      mutate(Seq_Category = ifelse(Sequencing_Type == "SG", "Shotgun", 
+                                   ifelse(is.na(Amplicon_Region) | Amplicon_Region == "", "Unknown", Amplicon_Region)))
+    
+    # Count unique datasets per category
+    dataset_seq_counts <- data %>%
+      distinct(Dataset_ID, Seq_Category) %>%
+      group_by(Seq_Category) %>%
+      summarise(Count = n(), .groups = "drop")
+    
+    if (nrow(dataset_seq_counts) == 0) {
+      return(empty_plot_message())
+    }
+    
+    # Order with Shotgun first, then alphabetically
+    dataset_seq_counts$Seq_Category <- factor(dataset_seq_counts$Seq_Category, 
+                                               levels = c("Shotgun", sort(setdiff(unique(dataset_seq_counts$Seq_Category), "Shotgun"))))
+    
+    ggplot(dataset_seq_counts, aes(x = Seq_Category, y = Count)) +
+      geom_bar(stat = "identity", fill = COLORS$PRIMARY) +
+      geom_text(aes(label = Count), vjust = -0.5, size = ANNOTATE_SIZE * 0.5) +
+      labs(x = "Amplicon Region / Sequencing Type", y = "Number of Datasets") +
+      theme_minimal(base_size = PLOT_BASE_SIZE) +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  })
+
+  # Plot 4: Median Reads after DADA2 by Dataset (excluding Shotgun)
+  output$samples_filter_plot4 <- renderPlot({
+    data <- filtered_samples()
+    if (is.null(data) || nrow(data) == 0) {
+      return(empty_plot_message())
+    }
+    
+    # Exclude shotgun samples
+    data <- data %>%
+      filter(Sequencing_Type != "SG")
+    
+    if (nrow(data) == 0) {
+      return(empty_plot_message())
+    }
+    
+    # Calculate median reads per dataset
+    median_reads <- data %>%
+      filter(!is.na(Num_Reads_Nonchim)) %>%
+      group_by(Dataset_ID) %>%
+      summarise(MedianReads = median(Num_Reads_Nonchim, na.rm = TRUE), .groups = "drop") %>%
+      arrange(desc(MedianReads))
+    
+    if (nrow(median_reads) == 0) {
+      return(empty_plot_message())
+    }
+    
+    ggplot(median_reads, aes(x = reorder(Dataset_ID, -MedianReads), y = MedianReads)) +
+      geom_bar(stat = "identity", fill = COLORS$PRIMARY) +
+      labs(x = "Dataset ID", y = "Median Reads after DADA2") +
+      theme_minimal(base_size = PLOT_BASE_SIZE) +
+      theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+      scale_y_continuous(labels = scales::comma)
+  })
+
+  # Plot 5: Number of Datasets by Sequencing Technology
+  output$samples_filter_plot5 <- renderPlot({
+    data <- filtered_samples()
+    if (is.null(data) || nrow(data) == 0) {
+      return(empty_plot_message())
+    }
+    
+    # Count unique datasets per sequencing technology
+    tech_counts <- data %>%
+      filter(!is.na(Seq_Tech) & Seq_Tech != "") %>%
+      distinct(Dataset_ID, Seq_Tech) %>%
+      group_by(Seq_Tech) %>%
+      summarise(Count = n(), .groups = "drop") %>%
+      arrange(desc(Count))
+    
+    if (nrow(tech_counts) == 0) {
+      return(empty_plot_message())
+    }
+    
+    ggplot(tech_counts, aes(x = reorder(Seq_Tech, -Count), y = Count)) +
+      geom_bar(stat = "identity", fill = COLORS$PRIMARY) +
+      geom_text(aes(label = Count), vjust = -0.5, size = ANNOTATE_SIZE * 0.5) +
+      labs(x = "Sequencing Technology", y = "Number of Datasets") +
+      theme_minimal(base_size = PLOT_BASE_SIZE) +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  })
+
+  # Plot 6: Number of Datasets by Body Site
+  output$samples_filter_plot6 <- renderPlot({
+    data <- filtered_samples()
+    if (is.null(data) || nrow(data) == 0) {
+      return(empty_plot_message())
+    }
+    
+    # Count unique datasets per sample site
+    site_dataset_counts <- data %>%
+      filter(!is.na(Sample_Site) & Sample_Site != "") %>%
+      distinct(Dataset_ID, Sample_Site) %>%
+      group_by(Sample_Site) %>%
+      summarise(Count = n(), .groups = "drop") %>%
+      mutate(Sample_Site = stringr::str_to_title(Sample_Site)) %>%
+      arrange(desc(Count))
+    
+    if (nrow(site_dataset_counts) == 0) {
+      return(empty_plot_message())
+    }
+    
+    ggplot(site_dataset_counts, aes(x = reorder(Sample_Site, -Count), y = Count)) +
+      geom_bar(stat = "identity", fill = COLORS$PRIMARY) +
+      geom_text(aes(label = Count), vjust = -0.5, size = ANNOTATE_SIZE * 0.5) +
+      labs(x = "Body Site", y = "Number of Datasets") +
+      theme_minimal(base_size = PLOT_BASE_SIZE) +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  })
+
+  # Plot 7: Number of Samples by Body Site
+  output$samples_filter_plot7 <- renderPlot({
+    data <- filtered_samples()
+    if (is.null(data) || nrow(data) == 0) {
+      return(empty_plot_message())
+    }
+    
+    # Count samples per sample site
+    site_counts <- data %>%
+      filter(!is.na(Sample_Site) & Sample_Site != "") %>%
+      group_by(Sample_Site) %>%
+      summarise(Count = n(), .groups = "drop") %>%
+      mutate(Sample_Site = stringr::str_to_title(Sample_Site)) %>%
+      arrange(desc(Count))
+    
+    if (nrow(site_counts) == 0) {
+      return(empty_plot_message())
+    }
+    
+    ggplot(site_counts, aes(x = reorder(Sample_Site, -Count), y = Count)) +
+      geom_bar(stat = "identity", fill = COLORS$PRIMARY) +
+      geom_text(aes(label = Count), vjust = -0.5, size = ANNOTATE_SIZE * 0.5) +
+      labs(x = "Body Site", y = "Number of Samples") +
+      theme_minimal(base_size = PLOT_BASE_SIZE) +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  })
+
+  # Plot 8: Analysis Group Pie Chart
+  output$samples_filter_plot8 <- renderPlot({
+    data <- filtered_samples()
+    if (is.null(data) || nrow(data) == 0) {
+      return(empty_plot_message())
+    }
+    
+    # Define group labels
+    group_labels <- c(
+      "ACD" = "ACD: Active Celiac Disease (not on GFD)",
+      "TCD" = "TCD: Treated Celiac Disease (on GFD)",
+      "HC" = "HC: Healthy Control",
+      "HC_GFD" = "HC_GFD: Healthy Control on a Gluten-Free Diet",
+      "PCD" = "PCD: Prospective Celiac Disease",
+      "PHC" = "PHC: Prospective Healthy Control"
+    )
+    
+    # Count samples per group
+    group_counts <- data %>%
+      filter(!is.na(Group) & Group != "") %>%
+      group_by(Group) %>%
+      summarise(Count = n(), .groups = "drop")
+    
+    if (nrow(group_counts) == 0) {
+      return(empty_plot_message())
+    }
+    
+    # Add full labels
+    group_counts$Label <- group_labels[group_counts$Group]
+    group_counts$Label[is.na(group_counts$Label)] <- group_counts$Group[is.na(group_counts$Label)]
+    
+    # Calculate percentages and positions for labels
+    group_counts <- group_counts %>%
+      mutate(
+        Percentage = Count / sum(Count) * 100,
+        Position = cumsum(Count) - Count / 2
+      )
+    
+    # Define colors for each group
+    group_colors <- c(
+      "ACD" = "#d9ad6c",
+      "TCD" = "#7eb4de",
+      "HC" = "#98c379",
+      "HC_GFD" = "#c678dd",
+      "PCD" = "#e06c75",
+      "PHC" = "#56b6c2"
+    )
+    
+    ggplot(group_counts, aes(x = "", y = Count, fill = Label)) +
+      geom_bar(stat = "identity", width = 1) +
+      coord_polar("y", start = 0) +
+      geom_text(aes(label = Count), position = position_stack(vjust = 0.5), size = 10) +
+      scale_fill_manual(values = setNames(group_colors[group_counts$Group], group_counts$Label)) +
+      labs(fill = "Analysis Group") +
+      theme_void(base_size = PLOT_BASE_SIZE) +
+      theme(legend.position = "right")
+  })
+
+  # Plot 9: Significant Factors Stacked Bar Plot with hover text
+  output$samples_filter_plot9 <- renderPlotly({
+    data <- filtered_samples()
+    if (is.null(data) || nrow(data) == 0) {
+      # Return empty plotly plot with message
+      p <- ggplot() +
+        annotate("text", x = 0.5, y = 0.5, label = "No data to display after filtering", size = ANNOTATE_SIZE, color = "grey50") +
+        theme_void(base_size = PLOT_BASE_SIZE) +
+        theme(panel.background = element_rect(fill = "#f0f0f0", color = NA))
+      return(ggplotly(p) %>% 
+               layout(xaxis = list(showticklabels = FALSE), yaxis = list(showticklabels = FALSE)) %>%
+               config(displayModeBar = FALSE))
+    }
+    
+    # Get columns for significant factors details
+    factor_cols <- c("Short_term_Gluten_Challenge", "NCGS", "Other_Autoimmune", "Hookworm", "Possible_Celiac")
+    factor_labels <- c("Short-term Gluten Challenge", "NCGS", "Other Autoimmune", "Hookworm", "Possible Celiac")
+    
+    # Create hover text for samples with significant factors
+    # Summarize which factors are present per dataset for samples with Any_Significant_Factor = TRUE
+    sig_data <- data %>%
+      filter(Any_Significant_Factor == TRUE)
+    
+    no_sig_data <- data %>%
+      filter(Any_Significant_Factor == FALSE | is.na(Any_Significant_Factor))
+    
+    # Count samples with significant factors per dataset and create hover text
+    if (nrow(sig_data) > 0) {
+      sig_summary <- sig_data %>%
+        group_by(Dataset_ID) %>%
+        summarise(
+          Count = n(),
+          Short_term_Gluten_Challenge_n = sum(Short_term_Gluten_Challenge == TRUE, na.rm = TRUE),
+          NCGS_n = sum(NCGS == TRUE, na.rm = TRUE),
+          Other_Autoimmune_n = sum(Other_Autoimmune == TRUE, na.rm = TRUE),
+          Hookworm_n = sum(Hookworm == TRUE, na.rm = TRUE),
+          Possible_Celiac_n = sum(Possible_Celiac == TRUE, na.rm = TRUE),
+          .groups = "drop"
+        ) %>%
+        mutate(
+          Hover_Text = paste0(
+            "Significant factors:<br>",
+            ifelse(Short_term_Gluten_Challenge_n > 0, paste0("- Short-term Gluten Challenge: ", Short_term_Gluten_Challenge_n, "<br>"), ""),
+            ifelse(NCGS_n > 0, paste0("- NCGS: ", NCGS_n, "<br>"), ""),
+            ifelse(Other_Autoimmune_n > 0, paste0("- Other Autoimmune: ", Other_Autoimmune_n, "<br>"), ""),
+            ifelse(Hookworm_n > 0, paste0("- Hookworm: ", Hookworm_n, "<br>"), ""),
+            ifelse(Possible_Celiac_n > 0, paste0("- Possible Celiac: ", Possible_Celiac_n, "<br>"), "")
+          ),
+          Factor_Label = "Significant factors"
+        ) %>%
+        select(Dataset_ID, Count, Hover_Text, Factor_Label)
+    } else {
+      sig_summary <- data.frame(Dataset_ID = character(), Count = numeric(), Hover_Text = character(), Factor_Label = character())
+    }
+    
+    # Count samples without significant factors per dataset
+    if (nrow(no_sig_data) > 0) {
+      no_sig_summary <- no_sig_data %>%
+        group_by(Dataset_ID) %>%
+        summarise(Count = n(), .groups = "drop") %>%
+        mutate(
+          Hover_Text = "No significant factors",
+          Factor_Label = "No significant factors"
+        )
+    } else {
+      no_sig_summary <- data.frame(Dataset_ID = character(), Count = numeric(), Hover_Text = character(), Factor_Label = character())
+    }
+    
+    # Combine the data
+    sig_counts <- bind_rows(no_sig_summary, sig_summary)
+    
+    if (nrow(sig_counts) == 0) {
+      p <- ggplot() +
+        annotate("text", x = 0.5, y = 0.5, label = "No data to display after filtering", size = ANNOTATE_SIZE, color = "grey50") +
+        theme_void(base_size = PLOT_BASE_SIZE) +
+        theme(panel.background = element_rect(fill = "#f0f0f0", color = NA))
+      return(ggplotly(p) %>% 
+               layout(xaxis = list(showticklabels = FALSE), yaxis = list(showticklabels = FALSE)) %>%
+               config(displayModeBar = FALSE))
+    }
+    
+    # Order datasets by total sample count
+    dataset_order <- sig_counts %>%
+      group_by(Dataset_ID) %>%
+      summarise(Total = sum(Count), .groups = "drop") %>%
+      arrange(desc(Total)) %>%
+      pull(Dataset_ID)
+    
+    sig_counts$Dataset_ID <- factor(sig_counts$Dataset_ID, levels = dataset_order)
+    sig_counts$Factor_Label <- factor(sig_counts$Factor_Label, levels = c("Significant factors", "No significant factors"))
+    
+    p <- ggplot(sig_counts, aes(x = Dataset_ID, y = Count, fill = Factor_Label, text = Hover_Text)) +
+      geom_bar(stat = "identity", position = position_stack(reverse = FALSE)) +
+      scale_fill_manual(values = c("No significant factors" = COLORS$SECONDARY, "Significant factors" = "#e06c75")) +
+      labs(x = "Dataset ID", y = "Number of Samples", fill = "") +
+      theme_minimal(base_size = PLOT_BASE_SIZE) +
+      theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
+            legend.position = "top")
+    
+    ggplotly(p, tooltip = "text") %>%
+      layout(legend = list(orientation = "h", x = 0.5, xanchor = "center", y = 1.05)) %>%
+      config(displayModeBar = FALSE)
+  })
 }
 
 # Run the application 
 shinyApp(ui = ui, server = server)
-
-

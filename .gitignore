@@ -1,0 +1,8 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+rsconnect
+repo_data/*.tsv
+repo_data/*.json

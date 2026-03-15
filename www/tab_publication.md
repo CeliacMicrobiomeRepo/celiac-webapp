@@ -1,6 +1,6 @@
 
 ##### 01 January 2025
-# Meta-Analysis of Celiac Disease Gut Microbiome
+# The Celiac Microbiome Repository: A Curated Collection of Celiac Disease Gut Microbiome Sequencing Datasets
 #### Haig Bishop and Peter Prendergast
 
 ---

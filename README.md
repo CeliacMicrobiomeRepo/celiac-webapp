@@ -1,14 +1,13 @@
 # The Celiac Microbiome Repository Web App
-This is the R Shiny web application used to view the Celiac Microbiome Repository
+This is the R Shiny web application used to view the **Celiac Microbiome Repository (CMR)**. The CMR is the best effort to comprehensively combine all high throughput sequencing datasets of the gut microbiome related to celiac disease. 
 
-View the live web app [here](https://celiac.shinyapps.io/celiac-webapp/)
+View the live web app at [www.celiac.shinyapps.io/celiac-webapp/](https://celiac.shinyapps.io/celiac-webapp/)
 
-## The Celiac Microbiome Repository
-The Celiac Microbiome Repository (CMR) is the best effort to comprehensively combine all high throughput sequencing datasets of the gut microbiome related to celiac disease. This [publication](https://paper.link) used data from version 1.0 of The Celiac Microbiome Repository (CMR), which was up to date as of **15th July 2025**. CMR is being extended beyond this date and is accessible on the [CMR GitHub Repo](https://github.com/CeliacMicrobiomeRepo/celiac-repository/tree/main/)
+View the repository at [www.github.com/CeliacMicrobiomeRepo/celiac-repository](https://github.com/CeliacMicrobiomeRepo/celiac-repository)
 
 
 ## Authors
-- **Haig Bishop**:   haig.bishop@pg.canterbury.ac.nz
+- **Haig Bishop** (haigvbishop@gmail.com)
 - **Peter Prendergast**
 
 
@@ -47,14 +46,14 @@ This code for this project is licensed under the **GNU General Public License v3
 1. Your system needs R some R packages
    - R 4.4.1 is proven to be stable
    - Use install_deps.R to see R packages
-2. You'll need to obtain the `.tsv` data files from the CMR
+2. You'll need to obtain the `.tsv` data files and `latest_version.json` from the CMR
    - The Python script `fetch_repo_data.py` does this automatically.
-   - The 4 `.tsv` files sit in `repo_data`
-3. To deploy the application to shinyapps.io run this using RStudio Connect:
+   - The 4 `.tsv` files and `latest_version.json` sit in `repo_data`
+3. To deploy the application to shinyapps.io run this (or deploy.R) in R:
   ```r
   library(rsconnect)
   rsconnect::deployApp(
-    appDir = "/Users/haig/Repos/celiac-webapp",
+    appDir = "/home/haig/Repos/celiac-webapp",
     account = "celiac"
   )
   ```

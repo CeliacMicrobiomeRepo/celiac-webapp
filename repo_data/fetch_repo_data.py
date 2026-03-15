@@ -10,6 +10,14 @@ Files downloaded:
  - `excluded_datasets.tsv` - Contains all datasets/studies that were not able to be included despite being eligible.
  - `all_samples.tsv`       - Contains all samples in the datasets in `included_datasets.tsv`.
  - `low_read_samples.tsv`  - Contains all samples in `all_samples.tsv` with final read counts after DADA2 less than 1,000.
+ - `latest_version.json`  - Contains metadata for the latest version of the repository like:
+        ```json
+        {
+            "latest_version_number": 1.0,
+            "latest_lit_search_date": "15th July 2025",
+            "latest_release_date": "4th December 2025"
+        }
+        ```
 """
 
 
@@ -24,7 +32,8 @@ FILES_TO_FETCH = [
     "all_samples.tsv",
     "excluded_datasets.tsv",
     "included_datasets.tsv",
-    "low_read_samples.tsv"
+    "low_read_samples.tsv",
+    "version_docs/latest_version.json"
 ]
 
 def download_file(url, target_path):
@@ -58,7 +67,7 @@ def main():
     # First, download all files to temporary locations
     for filename in FILES_TO_FETCH:
         url = BASE_URL + filename
-        target_path = script_dir / filename
+        target_path = script_dir / filename.split("/")[-1]
         print(f"Downloading {filename}...")
         
         temp_path = download_file(url, target_path)
@@ -74,7 +83,7 @@ def main():
     # If we got here, all downloads were successful
     # Now we can safely replace the existing files
     for filename, temp_path in successful_downloads.items():
-        target_path = script_dir / filename
+        target_path = script_dir / filename.split("/")[-1]
         if target_path.exists():
             print(f"Removing existing {filename}")
             target_path.unlink()
