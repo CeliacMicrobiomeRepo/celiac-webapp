@@ -1,0 +1,68 @@
+name: Refresh Data and Deploy
+
+on:
+  # Run weekly (Monday 00:00 UTC)
+  schedule:
+    - cron: '0 0 * * 1'
+  # Run when the upstream celiac-repository pushes changes to data files
+  repository_dispatch:
+    types: [data-updated]
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: pip install requests
+
+      - name: Fetch latest data from CMR
+        run: python repo_data/fetch_repo_data.py
+
+      - name: Verify data files exist
+        run: |
+          for f in all_samples.tsv included_datasets.tsv excluded_datasets.tsv low_read_samples.tsv latest_version.json; do
+            if [ ! -f "repo_data/$f" ]; then
+              echo "ERROR: repo_data/$f not found after fetch"
+              exit 1
+            fi
+          done
+          echo "All data files present."
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: '4.4.1'
+
+      - name: Install system dependencies (for sf/gdal)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgdal-dev libgeos-dev libproj-dev libudunits2-dev
+
+      - name: Install R packages
+        run: Rscript install_deps.R
+        shell: bash
+
+      - name: Install rsconnect
+        run: Rscript -e 'install.packages("rsconnect", repos = "https://cloud.r-project.org")'
+
+      - name: Deploy to shinyapps.io
+        env:
+          SHINYAPPS_TOKEN: ${{ secrets.SHINYAPPS_TOKEN }}
+          SHINYAPPS_SECRET: ${{ secrets.SHINYAPPS_SECRET }}
+        run: |
+          Rscript -e '
+            rsconnect::setAccountInfo(
+              name = "celiac",
+              token = Sys.getenv("SHINYAPPS_TOKEN"),
+              secret = Sys.getenv("SHINYAPPS_SECRET")
+            )
+            rsconnect::deployApp(appDir = ".", appName = "celiac-webapp", account = "celiac", forceUpdate = TRUE)
+          '
