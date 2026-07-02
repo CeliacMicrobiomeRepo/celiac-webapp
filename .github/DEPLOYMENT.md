@@ -26,7 +26,7 @@ Go to **Settings** → **Secrets and variables** → **Actions** → **New repos
 | `SHINYAPPS_TOKEN` | Your shinyapps.io token |
 | `SHINYAPPS_SECRET` | Your shinyapps.io secret |
 
-### 3. (Optional) Enable push-triggered deploys from `celiac-repository`
+### 3. (Optional) Enable push-triggered deploys from `celiac-repository` [included in celiac-repo/pull/1](https://github.com/CeliacMicrobiomeRepo/celiac-repository/pull/1)
 
 If you want data changes in `celiac-repository` to immediately trigger a webapp redeploy (rather than waiting for the next weekly run):
 
