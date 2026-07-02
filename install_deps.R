@@ -6,6 +6,7 @@ required_packages <- c(
   "shiny",
   "DT",
   "ggplot2",
+  "plotly",
   "rworldmap",
   "rworldxtra",
   "dplyr",
@@ -15,6 +16,9 @@ required_packages <- c(
   "countrycode",
   "gridExtra",
   "reshape2",
+  "scales",
+  "jsonlite",
+  "readr",
   "stringr"
 )
 
