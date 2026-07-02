@@ -1,5 +1,15 @@
 # Install and verify R package dependencies for the Shiny app.
 
+# Pin terra to a version that compiles against older GDAL. terra >= 1.8 fails to compile.
+# rnaturalearth hard-imports terra, so this must run before it's installed.
+if (!requireNamespace("terra", quietly = TRUE) || utils::packageVersion("terra") >= "1.8") {
+  utils::install.packages(
+    "https://cran.r-project.org/src/contrib/Archive/terra/terra_1.7-78.tar.gz",
+    repos = NULL,
+    type = "source"
+  )
+}
+
 # All packages referenced in app.R (and their namespaces)
 required_packages <- c(
   "markdown",
