@@ -1,5 +1,10 @@
 # Install and verify R package dependencies for the Shiny app.
 
+# Rcpp is a build dependency for terra. Install first since terra builds from source below.
+if (!requireNamespace("Rcpp", quietly = TRUE)) {
+  utils::install.packages("Rcpp", repos = "https://cloud.r-project.org")
+}
+
 # Pin terra to a version that compiles against older GDAL. terra >= 1.8 fails to compile.
 # rnaturalearth hard-imports terra, so this must run before it's installed.
 if (!requireNamespace("terra", quietly = TRUE) || utils::packageVersion("terra") >= "1.8") {
