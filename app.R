@@ -53,7 +53,7 @@ DEFAULT_DATA_SET_COLUMNS <- c(
   "Country", "Num_Samples", "Num_Celiac_Samples", 
   "Num_Prospective_Celiac_Samples", "Study_Design_Description"
 )
-# ALL: SRA_Run_ID	Sample_ID	Dataset_ID	SRA_Project_ID	Month_of_Publication	Publication_DOI	Sequencing_Type	Amplicon_Region	Num_Reads_Nonchim	Percent_Host_Reads_Removed	Total_Pairs_Pre_Host_Removal	Seq_Tech	DNA_Ext_Kit	Paired_Reads	Sample_Site	Diagnosed_Celiac	Gluten_Free_Diet	Will_Develop_Celiac	Group	Short_term_Gluten_Challenge	NCGS	Other_Autoimmune	Hookworm	Possible_Celiac	Any_Significant_Factor	Country	Age	Sex
+# ALL: SRA_Run_ID	Sample_ID	Dataset_ID	SRA_Project_ID	Month_of_Publication	Publication_DOI	Sequencing_Type	Amplicon_Region	Num_Reads_Nonchim	Percent_Host_Reads_Removed	Total_Pairs_Pre_Host_Removal	Seq_Tech	DNA_Ext_Kit	Paired_Reads	Sample_Site	Diagnosed_Celiac	Gluten_Free_Diet	Will_Develop_Celiac	Group	Short_term_Gluten_Challenge	NCGS	Other_Autoimmune	Hookworm	Possible_Celiac	Any_Significant_Factor	Country	Age	Sex	DOID	EFO	UBERON	NCIT_Sex
 DEFAULT_SAMPLE_COLUMNS <- c(
   "Sample_ID", "Dataset_ID", "Sequencing_Type", "Amplicon_Region", 
   "Seq_Tech", "Sample_Site", "Group", "Country"

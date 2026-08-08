@@ -53,6 +53,10 @@ Contains metadata for every sample included in CMR v{{VERSION}}. The file contai
   - `Country`: The country where the sample was collected.
   - `Age`: The age of the individual at the time of sampling, if reported. If specific age is unknown, an age range (e.g. '19-65') may be provided, 'unknown' otherwise.
   - `Sex`: The sex of the individual, if reported ('Male', 'Female', 'unknown').
+  - `DOID`: Disease Ontology identifier for the sample's disease condition. Samples in the ACD, TCD, or PCD groups are mapped to 'DOID:10608' (celiac disease). 'NA' for healthy controls (HC, HC_GFD, PHC).
+  - `EFO`: Experimental Factor Ontology identifier for the sample's disease condition. Samples in the ACD, TCD, or PCD groups are mapped to 'EFO:0001060' (celiac disease). 'NA' for healthy controls (HC, HC_GFD, PHC).
+  - `UBERON`: Uber-anatomy Ontology identifier for the body site from which the sample was collected ('UBERON:0001988' for stool, 'UBERON:0002114' for duodenal, 'UBERON:0001836' for saliva, 'UBERON:0000945' for gastric, 'UBERON:0001729' for oropharynx).
+  - `NCIT_Sex`: NCI Thesaurus identifier for the sex of the individual ('NCIT:C16576' for female, 'NCIT:C20197' for male). 'NA' if sex is unknown.
 
 ---
 
