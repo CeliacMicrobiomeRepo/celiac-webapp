@@ -62,6 +62,7 @@ Contains metadata for every sample included in CMR v{{VERSION}}. The file contai
 
 ## Included Datasets Metadata Dictionary
 Lists all datasets included in this version, along with key information like publication details, SRA references, sample counts, country, and sample site(s). It contains the following columns:
+
   - `Dataset_ID`: Unique identifier assigned to the dataset within the CMR.
   - `Bioproject_ID`: NCBI BioProject ID associated with the dataset, if available.
   - `Record_Link`: URL link to the primary data record (e.g., NCBI BioProject, specific database).
@@ -86,6 +87,7 @@ Lists all datasets included in this version, along with key information like pub
   - `Bowtie2_Alignment_Sensitivity`: Sensitivity preset used for Bowtie2 alignment in host read removal for shotgun data.
   - `Host_Genome_Index`: Reference genome index used for host read removal.
   - `MetaPhlAn_Database`: Specific database version used for taxonomic profiling with MetaPhlAn in shotgun data.
+  - `SILVA_Database`: SILVA database version used for taxonomic assignment of 16S ASVs. NA for shotgun datasets.
   - `MetaPhlAn_Parameters`: Complete MetaPhlAn4 execution parameters used, given as semicolon-separated key=value pairs covering the tool version, marker database index, analysis type, statistical/confidence thresholds, and the handling of unclassified reads. NA for 16S datasets.
   - `Fw_Read_Trim_Position`: Forward read trimming length/position used in DADA2, if applicable.
   - `Rv_Read_Trim_Position`: Reverse read trimming length/position used in DADA2, if applicable.

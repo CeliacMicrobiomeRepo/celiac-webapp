@@ -104,15 +104,15 @@ ui <- fluidPage(
              )
     ), 
 
-    # tabPanel("Publication",
-    #          # Div containing all contents, styled by help-tab-content
-    #          tags$div(
-    #            class = c("about-tab-content"),
-    #            style = "max-width: 750px; margin: 0 auto;",
-    #            # Include Markdown content for the Publication tab
-    #            includeMarkdown("www/tab_publication.md")
-    #          )
-    # ), 
+    tabPanel("Publication",
+             # Div containing all contents, styled by help-tab-content
+             tags$div(
+               class = c("about-tab-content"),
+               style = "max-width: 750px; margin: 0 auto;",
+               # Include Markdown content for the Publication tab
+               includeMarkdown("www/tab_publication.md")
+             )
+    ),
     
     tabPanel("Datasets",
              sidebarLayout(
