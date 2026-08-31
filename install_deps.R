@@ -1,11 +1,5 @@
 # Install and verify R package dependencies for the Shiny app.
 
-# Pinned to a fixed CRAN snapshot date (via Posit Package Manager) instead of "latest",
-# so every package -- including transitive deps like terra -- resolves consistently from
-# one point in time. terra >= 1.8 doesn't compile against the GDAL on shinyapps.io's build
-# servers; this date keeps terra on the 1.7.x line without needing to pin it by hand.
-options(repos = c(CRAN = "https://packagemanager.posit.co/cran/2024-08-01"))
-
 # All packages referenced in app.R (and their namespaces)
 required_packages <- c(
   "markdown",
@@ -13,15 +7,9 @@ required_packages <- c(
   "DT",
   "ggplot2",
   "plotly",
-  "rworldmap",
-  "rworldxtra",
   "dplyr",
-  "sf",
-  "rnaturalearth",
-  "rnaturalearthdata",
   "countrycode",
   "gridExtra",
-  "reshape2",
   "scales",
   "jsonlite",
   "readr",

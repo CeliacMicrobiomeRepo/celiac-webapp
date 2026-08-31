@@ -18,16 +18,10 @@ library(markdown)        # For rendering Markdown content
 library(shiny)           # For building the Shiny web application
 library(DT)              # For rendering interactive data tables
 library(ggplot2)         # For creating plots and visualizations
-library(rworldmap)       # For mapping geographical data
-library(rworldxtra)      # Additional world map data
 library(dplyr)           # For data manipulation
-library(sf)              # For handling spatial data
-library(rnaturalearth)   # For natural earth map data
-library(rnaturalearthdata) # For additional natural earth data
 library(countrycode)     # For converting country names to codes
 library(grid)            # For grid graphics
 library(gridExtra)       # For arranging multiple grid graphics
-library(reshape2)        # For reshaping data
 library(jsonlite)        # For reading version info
 library(scales)          # For formatting axis labels
 library(plotly)          # For interactive plots with hover
@@ -174,13 +168,27 @@ ui <- fluidPage(
                ),
                mainPanel(
                  h3("Samples"),
-                 downloadButton("download_samples_table", "Download Filtered Table"),
+                 tags$div(
+                   style = "display: flex; gap: 10px; align-items: center; margin-bottom: 10px;",
+                   downloadButton("download_samples_table", "Download Filtered Table"),
+                   # Scrolls down to the plots of the filtered samples below the table
+                   tags$button(
+                     class = "btn btn-default",
+                     onclick = "document.getElementById('samples_plots_section').scrollIntoView({behavior: 'smooth'});",
+                     "Show Plots"
+                   )
+                 ),
                  DT::dataTableOutput("samples_table"),  # Output for samples table
                  br(),
                  hr(),
 
                  # Samples Tab Plots After Sampling Filtering
-                 uiOutput("samples_plot_grid"),
+                 tags$div(
+                   id = "samples_plots_section",
+                   style = "scroll-margin-top: 70px;",  # Keep the heading clear of the fixed navbar when scrolled to
+                   h3("Plots of Filtered Samples"),
+                   uiOutput("samples_plot_grid")
+                 ),
                  width = 9,
                  class = "custom-main"  # Custom styling for the main panel
                )
@@ -272,7 +280,6 @@ server <- function(input, output, session) {
   
   included_datasets <- NULL  # Initialize variable for datasets
   included_samples <- NULL    # Initialize variable for samples
-  world_map_sf <- NULL        # Cache for Natural Earth world map
   
   # Load the datasets file if it exists
   if (file.exists("repo_data/included_datasets.tsv")) {
@@ -418,11 +425,6 @@ server <- function(input, output, session) {
     }
   })
 
-  # Cache world map once per session for Plot 3
-  world_map_sf <- tryCatch({
-    ne_countries(scale = "medium", returnclass = "sf")
-  }, error = function(e) NULL)
-  
   # Shared reactives for commonly reused filtered datasets
   filtered_samples <- reactive({
     if (is.null(included_samples)) return(NULL)
@@ -568,7 +570,7 @@ server <- function(input, output, session) {
                       pageLength = 150,  # Number of rows per page
                       autoWidth = FALSE,
                       scrollX = TRUE,    # Enable horizontal scrolling
-                      scrollY = "75vh",  # Set vertical scroll height
+                      scrollY = "50vh",  # Set vertical scroll height (kept short so the plots below are visible)
                       dom = 'tip',       # Display table information and pagination
                       buttons = c('csv', 'excel', 'pdf'),  # Export options
                        deferRender = TRUE,  # Faster initial draw
@@ -674,6 +676,13 @@ server <- function(input, output, session) {
       plotname <- paste0("plot", i)  # Unique name for the plot output
       downloadname <- paste0("download_data_plot", i)  # Unique name for the download button
       
+      # Use plotlyOutput for interactive plots; plot 5 is a table graphic and stays static
+      plot_ui <- if (i == 5) {
+        plotOutput(plotname)
+      } else {
+        plotlyOutput(plotname)
+      }
+
       # Use a column with flexbox styling for the title and button
       column(
         width = 12 / columns_per_row,
@@ -683,7 +692,7 @@ server <- function(input, output, session) {
           h4(plot_titles[i], style = "margin: 0;"),  # Title aligned left
           downloadButton(downloadname, "Download Data")  # Button aligned right
         ),
-        plotOutput(plotname)  # Plot output below the title and button
+        plot_ui  # Plot output below the title and button
       )
     })
     
@@ -699,7 +708,7 @@ server <- function(input, output, session) {
   })
   
   # Plot 1: Accumulating line plot over the years
-  output$plot1 <- renderPlot({
+  output$plot1 <- renderPlotly({
     if (!is.null(included_samples)) {
       # Filter to diagnosed celiac samples
       plot1_data <- celiac_samples()
@@ -736,10 +745,13 @@ server <- function(input, output, session) {
           labs(x = "Year of Publication", y = "Cumulative Number of Samples") +
           theme_minimal()
         if (nrow(counts_per_year) >= 2) {
-          p + geom_line(color = COLORS$PRIMARY, size = 1) + geom_point(color = COLORS$PRIMARY, size = 2)
-        } else {
-          p + geom_point(color = COLORS$PRIMARY, size = 2)
+          p <- p + geom_line(color = COLORS$PRIMARY, size = 1)
         }
+        p <- p + geom_point(
+          aes(text = paste0("Year: ", Year, "<br>Cumulative samples: ", CumulativeCount)),
+          color = COLORS$PRIMARY, size = 2
+        )
+        ggplotly(p, tooltip = "text") %>% config(displayModeBar = FALSE)
       }
     }
   })
@@ -761,7 +773,7 @@ server <- function(input, output, session) {
   )
   
   # Plot 2: Bar plot of sample sites
-  output$plot2 <- renderPlot({
+  output$plot2 <- renderPlotly({
     if (!is.null(included_samples)) {
       # Filter to diagnosed celiac samples
       plot2_data <- celiac_samples()
@@ -777,7 +789,8 @@ server <- function(input, output, session) {
       shiny::validate(shiny::need(nrow(sample_site_counts) > 0, "No sample-site data to display."))
       
       # Plot
-      ggplot(sample_site_counts, aes(x = reorder(SampleSite, -Count), y = Count)) +
+      p <- ggplot(sample_site_counts, aes(x = reorder(SampleSite, -Count), y = Count,
+                                          text = paste0(SampleSite, ": ", Count, " samples"))) +
         geom_bar(stat = "identity", fill = COLORS$PRIMARY) +  # Bar color
         geom_text(aes(label = Count), vjust = -0.5, size = 3) +  # Add counts at the top of bars
         labs(
@@ -786,6 +799,7 @@ server <- function(input, output, session) {
         ) +
         theme_minimal() +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels
+      ggplotly(p, tooltip = "text") %>% config(displayModeBar = FALSE)
     }
   })
   
@@ -806,23 +820,19 @@ server <- function(input, output, session) {
   )
   
   # Plot 3: World map with circles proportional to the number of samples per country
-  output$plot3 <- renderPlot({
+  output$plot3 <- renderPlotly({
     if (!is.null(included_samples)) {
       # Extract 'Country' and remove NAs
       country_data <- na.omit(included_samples$Country)
-      
+
       # Standardize country names if necessary
       country_data <- as.character(country_data)
-      
+
       # Count occurrences
       country_counts <- as.data.frame(table(country_data))  # Count samples per country
       colnames(country_counts) <- c("Country", "Count")
-      
-      # Get world map data (cached)
-      world_map <- world_map_sf
-      shiny::validate(shiny::need(!is.null(world_map), "Map data unavailable."))
-      
-      # Merge country counts with map data
+
+      # Convert country names to ISO codes with custom matches
       country_counts$iso_a3 <- countrycode(
         country_counts$Country,
         "country.name",
@@ -833,28 +843,45 @@ server <- function(input, output, session) {
           "Wales" = "GBR",
           "Northern Ireland" = "GBR"
         )
-      )  # Convert country names to ISO codes with custom matches
+      )
       country_counts <- country_counts[!is.na(country_counts$iso_a3), ]  # Remove NAs
-      map_data <- left_join(world_map, country_counts, by = c("iso_a3"))  # Join map data with counts
-      map_data$Count[is.na(map_data$Count)] <- 0  # Replace NAs with 0
-      
-      # Plot
-      {
-        # Compute centroids in a projected CRS for more reliable points
-        centroids <- sf::st_centroid(sf::st_transform(map_data, 3857))
-        centroids <- sf::st_transform(centroids, 4326)
-        coords <- sf::st_coordinates(centroids)
-        points_df <- data.frame(lon = coords[, 1], lat = coords[, 2], Count = map_data$Count)
-        points_df <- points_df[points_df$Count > 0, ]
-        
-        ggplot(map_data) +
-          geom_sf(aes(geometry = geometry), fill = COLORS$BACKGROUND, color = COLORS$TEXT) +  # Base map
-          geom_point(data = points_df, aes(x = lon, y = lat, size = Count), color = COLORS$PRIMARY) +
-          scale_size_continuous(range = c(2, 10), guide = FALSE) +  # Size scale for points
-          labs(x = "", y = "") +
-          theme_minimal() +
-          theme(axis.text = element_blank(), axis.ticks = element_blank())  # Remove axis text and ticks
-      }
+
+      # Aggregate counts sharing an ISO code (e.g. UK constituent countries)
+      country_counts <- country_counts %>%
+        group_by(iso_a3) %>%
+        summarise(
+          Country = paste(unique(Country), collapse = ", "),
+          Count = sum(Count),
+          .groups = "drop"
+        )
+
+      shiny::validate(shiny::need(nrow(country_counts) > 0, "No country data to display."))
+
+      # Plot circles at country centroids on plotly's built-in world map
+      plot_ly(
+        country_counts,
+        type = "scattergeo",
+        mode = "markers",
+        locations = ~iso_a3,
+        locationmode = "ISO-3",
+        size = ~Count,
+        sizes = c(15, 60),
+        marker = list(color = COLORS$PRIMARY, sizemode = "area", opacity = 0.9),
+        text = ~paste0(Country, ": ", format(Count, big.mark = ",", trim = TRUE), " samples"),
+        hoverinfo = "text"
+      ) %>%
+        layout(
+          geo = list(
+            showland = TRUE,
+            landcolor = COLORS$BACKGROUND,
+            showcountries = TRUE,
+            countrycolor = COLORS$TEXT,
+            showframe = FALSE,
+            projection = list(type = "natural earth")
+          ),
+          margin = list(l = 0, r = 0, t = 0, b = 0)
+        ) %>%
+        config(displayModeBar = FALSE)
     }
   })
   
@@ -872,7 +899,7 @@ server <- function(input, output, session) {
   )
   
   # Plot 4: Bar plot of amplicon regions of all 16S rRNA samples
-  output$plot4 <- renderPlot({
+  output$plot4 <- renderPlotly({
     if (!is.null(included_samples)) {
       # Filter samples with "16S" in Sequencing_Type
       plot4_data <- samples_16s()
@@ -885,7 +912,8 @@ server <- function(input, output, session) {
       colnames(amplicon_counts) <- c("AmpliconRegion", "Count")
       
       # Plot
-      ggplot(amplicon_counts, aes(x = AmpliconRegion, y = Count)) +
+      p <- ggplot(amplicon_counts, aes(x = AmpliconRegion, y = Count,
+                                       text = paste0(AmpliconRegion, ": ", Count, " samples"))) +
         geom_bar(stat = "identity", fill = COLORS$PRIMARY) +  # Bar color
         geom_text(aes(label = Count), vjust = -0.5, size = 3) +  # Add counts at the top of bars
         labs(
@@ -894,6 +922,7 @@ server <- function(input, output, session) {
         ) +
         theme_minimal() +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels
+      ggplotly(p, tooltip = "text") %>% config(displayModeBar = FALSE)
     }
   })
   
@@ -966,7 +995,7 @@ server <- function(input, output, session) {
   )
   
   # Plot 6: Sample Group Distributions for Prospective Studies
-  output$plot6 <- renderPlot({
+  output$plot6 <- renderPlotly({
     if (!is.null(included_samples)) {
       # Filter samples where 'Group' is 'PHC' or 'PCD'
       plot6_data <- included_samples[included_samples$Group %in% c("PHC", "PCD"), ]
@@ -983,9 +1012,9 @@ server <- function(input, output, session) {
       )
       
       # Plot
-      ggplot(plot6_counts, aes(x = Dataset_ID, y = Count, fill = SampleGroup)) +
+      p <- ggplot(plot6_counts, aes(x = Dataset_ID, y = Count, fill = SampleGroup,
+                                    text = paste0(Dataset_ID, "<br>", SampleGroup, ": ", Count, " samples"))) +
         geom_bar(stat = "identity", position = position_dodge(width = 0.9)) +  # Bar plot with dodged positions
-        geom_text(aes(label = Count), position = position_dodge(width = 0.9), vjust = -0.5, size = 4) +  # Add counts on bars
         labs(
           x = "Dataset ID",
           y = "Number of Samples",
@@ -994,6 +1023,7 @@ server <- function(input, output, session) {
         scale_fill_manual(values = c("Celiac" = COLORS$PRIMARY, "Non-Celiac" = COLORS$SECONDARY)) +  # Custom colors for groups
         theme_minimal() +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels
+      ggplotly(p, tooltip = "text") %>% config(displayModeBar = FALSE)
     }
   })
   
@@ -1035,13 +1065,10 @@ server <- function(input, output, session) {
     # Generate the UI for each plot using bootstrap classes for responsiveness
     plot_output_list <- lapply(1:num_plots, function(i) {
       plotname <- paste0("samples_filter_plot", i)
+      downloadname <- paste0("download_data_samples_plot", i)  # Unique name for the download button
 
-      # Use plotlyOutput for plot 9 (Significant Factors) for hover functionality
-      plot_ui <- if (i == 9) {
-        plotlyOutput(plotname, height = "900px")
-      } else {
-        plotOutput(plotname, height = "900px")
-      }
+      # All plots are interactive (hover tooltips and zoom) via plotly
+      plot_ui <- plotlyOutput(plotname, height = "900px")
 
       # Use column with responsive classes to change column count based on window width
       tags$div(
@@ -1049,7 +1076,11 @@ server <- function(input, output, session) {
         style = "margin-bottom: 30px; padding: 15px;",
         tags$div(
           style = "background: #f9f9f9; border: 1px solid #ddd; padding: 15px; border-radius: 4px; height: 100%;",
-          h4(samples_plot_titles[i], style = "margin-top: 0;"),
+          tags$div(
+            style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;",
+            h4(samples_plot_titles[i], style = "margin: 0;"),  # Title aligned left
+            downloadButton(downloadname, "Download Data")  # Button aligned right
+          ),
           plot_ui
         )
       )
@@ -1067,137 +1098,152 @@ server <- function(input, output, session) {
       theme(panel.background = element_rect(fill = "#f0f0f0", color = NA))
   }
 
+  # Plotly version of the empty plot message, for the interactive plots
+  empty_plotly_message <- function(msg = "No data to display after filtering") {
+    ggplotly(empty_plot_message(msg)) %>%
+      layout(xaxis = list(showticklabels = FALSE), yaxis = list(showticklabels = FALSE)) %>%
+      config(displayModeBar = FALSE)
+  }
+
   # Plot 1: Dataset sample sizes bar plot
-  output$samples_filter_plot1 <- renderPlot({
+  output$samples_filter_plot1 <- renderPlotly({
     data <- filtered_samples()
     if (is.null(data) || nrow(data) == 0) {
-      return(empty_plot_message())
+      return(empty_plotly_message())
     }
-    
+
     dataset_counts <- data %>%
       group_by(Dataset_ID) %>%
       summarise(Count = n(), .groups = "drop") %>%
       arrange(desc(Count))
-    
+
     if (nrow(dataset_counts) == 0) {
-      return(empty_plot_message())
+      return(empty_plotly_message())
     }
-    
-    ggplot(dataset_counts, aes(x = reorder(Dataset_ID, -Count), y = Count)) +
+
+    p <- ggplot(dataset_counts, aes(x = reorder(Dataset_ID, -Count), y = Count,
+                                    text = paste0(Dataset_ID, ": ", Count, " samples"))) +
       geom_bar(stat = "identity", fill = COLORS$PRIMARY) +
       geom_text(aes(label = Count), vjust = -0.5, size = ANNOTATE_SIZE * 0.5) +
       labs(x = "Dataset ID", y = "Number of Samples") +
       theme_minimal(base_size = PLOT_BASE_SIZE) +
       theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+    ggplotly(p, tooltip = "text") %>% config(displayModeBar = FALSE)
   })
 
   # Plot 2: Samples by Amplicon Region (Shotgun first)
-  output$samples_filter_plot2 <- renderPlot({
+  output$samples_filter_plot2 <- renderPlotly({
     data <- filtered_samples()
     if (is.null(data) || nrow(data) == 0) {
-      return(empty_plot_message())
+      return(empty_plotly_message())
     }
-    
+
     # Create a combined column for sequencing type / amplicon region
     data <- data %>%
-      mutate(Seq_Category = ifelse(Sequencing_Type == "SG", "Shotgun", 
+      mutate(Seq_Category = ifelse(Sequencing_Type == "SG", "Shotgun",
                                    ifelse(is.na(Amplicon_Region) | Amplicon_Region == "", "Unknown", Amplicon_Region)))
-    
+
     seq_counts <- data %>%
       group_by(Seq_Category) %>%
       summarise(Count = n(), .groups = "drop")
-    
+
     if (nrow(seq_counts) == 0) {
-      return(empty_plot_message())
+      return(empty_plotly_message())
     }
-    
+
     # Order with Shotgun first, then alphabetically
-    seq_counts$Seq_Category <- factor(seq_counts$Seq_Category, 
+    seq_counts$Seq_Category <- factor(seq_counts$Seq_Category,
                                        levels = c("Shotgun", sort(setdiff(unique(seq_counts$Seq_Category), "Shotgun"))))
-    
-    ggplot(seq_counts, aes(x = Seq_Category, y = Count)) +
+
+    p <- ggplot(seq_counts, aes(x = Seq_Category, y = Count,
+                                text = paste0(Seq_Category, ": ", Count, " samples"))) +
       geom_bar(stat = "identity", fill = COLORS$PRIMARY) +
       geom_text(aes(label = Count), vjust = -0.5, size = ANNOTATE_SIZE * 0.5) +
       labs(x = "Amplicon Region / Sequencing Type", y = "Number of Samples") +
       theme_minimal(base_size = PLOT_BASE_SIZE) +
       theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    ggplotly(p, tooltip = "text") %>% config(displayModeBar = FALSE)
   })
 
   # Plot 3: Datasets by Amplicon Region (Shotgun first)
-  output$samples_filter_plot3 <- renderPlot({
+  output$samples_filter_plot3 <- renderPlotly({
     data <- filtered_samples()
     if (is.null(data) || nrow(data) == 0) {
-      return(empty_plot_message())
+      return(empty_plotly_message())
     }
-    
+
     # Create a combined column for sequencing type / amplicon region
     data <- data %>%
-      mutate(Seq_Category = ifelse(Sequencing_Type == "SG", "Shotgun", 
+      mutate(Seq_Category = ifelse(Sequencing_Type == "SG", "Shotgun",
                                    ifelse(is.na(Amplicon_Region) | Amplicon_Region == "", "Unknown", Amplicon_Region)))
-    
+
     # Count unique datasets per category
     dataset_seq_counts <- data %>%
       distinct(Dataset_ID, Seq_Category) %>%
       group_by(Seq_Category) %>%
       summarise(Count = n(), .groups = "drop")
-    
+
     if (nrow(dataset_seq_counts) == 0) {
-      return(empty_plot_message())
+      return(empty_plotly_message())
     }
-    
+
     # Order with Shotgun first, then alphabetically
-    dataset_seq_counts$Seq_Category <- factor(dataset_seq_counts$Seq_Category, 
+    dataset_seq_counts$Seq_Category <- factor(dataset_seq_counts$Seq_Category,
                                                levels = c("Shotgun", sort(setdiff(unique(dataset_seq_counts$Seq_Category), "Shotgun"))))
-    
-    ggplot(dataset_seq_counts, aes(x = Seq_Category, y = Count)) +
+
+    p <- ggplot(dataset_seq_counts, aes(x = Seq_Category, y = Count,
+                                        text = paste0(Seq_Category, ": ", Count, " datasets"))) +
       geom_bar(stat = "identity", fill = COLORS$PRIMARY) +
       geom_text(aes(label = Count), vjust = -0.5, size = ANNOTATE_SIZE * 0.5) +
       labs(x = "Amplicon Region / Sequencing Type", y = "Number of Datasets") +
       theme_minimal(base_size = PLOT_BASE_SIZE) +
       theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    ggplotly(p, tooltip = "text") %>% config(displayModeBar = FALSE)
   })
 
   # Plot 4: Median Reads after DADA2 by Dataset (excluding Shotgun)
-  output$samples_filter_plot4 <- renderPlot({
+  output$samples_filter_plot4 <- renderPlotly({
     data <- filtered_samples()
     if (is.null(data) || nrow(data) == 0) {
-      return(empty_plot_message())
+      return(empty_plotly_message())
     }
-    
+
     # Exclude shotgun samples
     data <- data %>%
       filter(Sequencing_Type != "SG")
-    
+
     if (nrow(data) == 0) {
-      return(empty_plot_message())
+      return(empty_plotly_message())
     }
-    
+
     # Calculate median reads per dataset
     median_reads <- data %>%
       filter(!is.na(Num_Reads_Nonchim)) %>%
       group_by(Dataset_ID) %>%
       summarise(MedianReads = median(Num_Reads_Nonchim, na.rm = TRUE), .groups = "drop") %>%
       arrange(desc(MedianReads))
-    
+
     if (nrow(median_reads) == 0) {
-      return(empty_plot_message())
+      return(empty_plotly_message())
     }
-    
-    ggplot(median_reads, aes(x = reorder(Dataset_ID, -MedianReads), y = MedianReads)) +
+
+    p <- ggplot(median_reads, aes(x = reorder(Dataset_ID, -MedianReads), y = MedianReads,
+                                  text = paste0(Dataset_ID, ": median ", scales::comma(MedianReads), " reads"))) +
       geom_bar(stat = "identity", fill = COLORS$PRIMARY) +
       labs(x = "Dataset ID", y = "Median Reads after DADA2") +
       theme_minimal(base_size = PLOT_BASE_SIZE) +
       theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
       scale_y_continuous(labels = scales::comma)
+    ggplotly(p, tooltip = "text") %>% config(displayModeBar = FALSE)
   })
 
   # Plot 5: Number of Datasets by Sequencing Technology
-  output$samples_filter_plot5 <- renderPlot({
+  output$samples_filter_plot5 <- renderPlotly({
     data <- filtered_samples()
     if (is.null(data) || nrow(data) == 0) {
-      return(empty_plot_message())
+      return(empty_plotly_message())
     }
-    
+
     # Count unique datasets per sequencing technology
     tech_counts <- data %>%
       filter(!is.na(Seq_Tech) & Seq_Tech != "") %>%
@@ -1205,26 +1251,28 @@ server <- function(input, output, session) {
       group_by(Seq_Tech) %>%
       summarise(Count = n(), .groups = "drop") %>%
       arrange(desc(Count))
-    
+
     if (nrow(tech_counts) == 0) {
-      return(empty_plot_message())
+      return(empty_plotly_message())
     }
-    
-    ggplot(tech_counts, aes(x = reorder(Seq_Tech, -Count), y = Count)) +
+
+    p <- ggplot(tech_counts, aes(x = reorder(Seq_Tech, -Count), y = Count,
+                                 text = paste0(Seq_Tech, ": ", Count, " datasets"))) +
       geom_bar(stat = "identity", fill = COLORS$PRIMARY) +
       geom_text(aes(label = Count), vjust = -0.5, size = ANNOTATE_SIZE * 0.5) +
       labs(x = "Sequencing Technology", y = "Number of Datasets") +
       theme_minimal(base_size = PLOT_BASE_SIZE) +
       theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    ggplotly(p, tooltip = "text") %>% config(displayModeBar = FALSE)
   })
 
   # Plot 6: Number of Datasets by Body Site
-  output$samples_filter_plot6 <- renderPlot({
+  output$samples_filter_plot6 <- renderPlotly({
     data <- filtered_samples()
     if (is.null(data) || nrow(data) == 0) {
-      return(empty_plot_message())
+      return(empty_plotly_message())
     }
-    
+
     # Count unique datasets per sample site
     site_dataset_counts <- data %>%
       filter(!is.na(Sample_Site) & Sample_Site != "") %>%
@@ -1233,26 +1281,28 @@ server <- function(input, output, session) {
       summarise(Count = n(), .groups = "drop") %>%
       mutate(Sample_Site = stringr::str_to_title(Sample_Site)) %>%
       arrange(desc(Count))
-    
+
     if (nrow(site_dataset_counts) == 0) {
-      return(empty_plot_message())
+      return(empty_plotly_message())
     }
-    
-    ggplot(site_dataset_counts, aes(x = reorder(Sample_Site, -Count), y = Count)) +
+
+    p <- ggplot(site_dataset_counts, aes(x = reorder(Sample_Site, -Count), y = Count,
+                                         text = paste0(Sample_Site, ": ", Count, " datasets"))) +
       geom_bar(stat = "identity", fill = COLORS$PRIMARY) +
       geom_text(aes(label = Count), vjust = -0.5, size = ANNOTATE_SIZE * 0.5) +
       labs(x = "Body Site", y = "Number of Datasets") +
       theme_minimal(base_size = PLOT_BASE_SIZE) +
       theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    ggplotly(p, tooltip = "text") %>% config(displayModeBar = FALSE)
   })
 
   # Plot 7: Number of Samples by Body Site
-  output$samples_filter_plot7 <- renderPlot({
+  output$samples_filter_plot7 <- renderPlotly({
     data <- filtered_samples()
     if (is.null(data) || nrow(data) == 0) {
-      return(empty_plot_message())
+      return(empty_plotly_message())
     }
-    
+
     # Count samples per sample site
     site_counts <- data %>%
       filter(!is.na(Sample_Site) & Sample_Site != "") %>%
@@ -1260,26 +1310,29 @@ server <- function(input, output, session) {
       summarise(Count = n(), .groups = "drop") %>%
       mutate(Sample_Site = stringr::str_to_title(Sample_Site)) %>%
       arrange(desc(Count))
-    
+
     if (nrow(site_counts) == 0) {
-      return(empty_plot_message())
+      return(empty_plotly_message())
     }
-    
-    ggplot(site_counts, aes(x = reorder(Sample_Site, -Count), y = Count)) +
+
+    p <- ggplot(site_counts, aes(x = reorder(Sample_Site, -Count), y = Count,
+                                 text = paste0(Sample_Site, ": ", Count, " samples"))) +
       geom_bar(stat = "identity", fill = COLORS$PRIMARY) +
       geom_text(aes(label = Count), vjust = -0.5, size = ANNOTATE_SIZE * 0.5) +
       labs(x = "Body Site", y = "Number of Samples") +
       theme_minimal(base_size = PLOT_BASE_SIZE) +
       theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    ggplotly(p, tooltip = "text") %>% config(displayModeBar = FALSE)
   })
 
   # Plot 8: Analysis Group Pie Chart
-  output$samples_filter_plot8 <- renderPlot({
+  # Uses a native plotly pie chart, as ggplotly does not support coord_polar
+  output$samples_filter_plot8 <- renderPlotly({
     data <- filtered_samples()
     if (is.null(data) || nrow(data) == 0) {
-      return(empty_plot_message())
+      return(empty_plotly_message())
     }
-    
+
     # Define group labels
     group_labels <- c(
       "ACD" = "ACD: Active Celiac Disease (not on GFD)",
@@ -1289,28 +1342,25 @@ server <- function(input, output, session) {
       "PCD" = "PCD: Prospective Celiac Disease",
       "PHC" = "PHC: Prospective Healthy Control"
     )
-    
+
     # Count samples per group
     group_counts <- data %>%
       filter(!is.na(Group) & Group != "") %>%
       group_by(Group) %>%
       summarise(Count = n(), .groups = "drop")
-    
+
     if (nrow(group_counts) == 0) {
-      return(empty_plot_message())
+      return(empty_plotly_message())
     }
-    
+
     # Add full labels
     group_counts$Label <- group_labels[group_counts$Group]
     group_counts$Label[is.na(group_counts$Label)] <- group_counts$Group[is.na(group_counts$Label)]
-    
-    # Calculate percentages and positions for labels
+
+    # Calculate percentages for hover text
     group_counts <- group_counts %>%
-      mutate(
-        Percentage = Count / sum(Count) * 100,
-        Position = cumsum(Count) - Count / 2
-      )
-    
+      mutate(Percentage = Count / sum(Count) * 100)
+
     # Define colors for each group
     group_colors <- c(
       "ACD" = "#d9ad6c",
@@ -1320,29 +1370,28 @@ server <- function(input, output, session) {
       "PCD" = "#e06c75",
       "PHC" = "#56b6c2"
     )
-    
-    ggplot(group_counts, aes(x = "", y = Count, fill = Label)) +
-      geom_bar(stat = "identity", width = 1) +
-      coord_polar("y", start = 0) +
-      geom_text(aes(label = Count), position = position_stack(vjust = 0.5), size = 10) +
-      scale_fill_manual(values = setNames(group_colors[group_counts$Group], group_counts$Label)) +
-      labs(fill = "Analysis Group") +
-      theme_void(base_size = PLOT_BASE_SIZE) +
-      theme(legend.position = "right")
+
+    plot_ly(
+      group_counts,
+      labels = ~Label,
+      values = ~Count,
+      type = "pie",
+      sort = FALSE,
+      textinfo = "value",
+      textfont = list(size = 22),
+      hoverinfo = "text",
+      text = ~paste0(Label, "<br>", format(Count, big.mark = ",", trim = TRUE), " samples (", sprintf("%.1f", Percentage), "%)"),
+      marker = list(colors = unname(group_colors[group_counts$Group]))
+    ) %>%
+      layout(legend = list(title = list(text = "Analysis Group"), orientation = "v", x = 1.02, y = 0.5)) %>%
+      config(displayModeBar = FALSE)
   })
 
   # Plot 9: Significant Factors Stacked Bar Plot with hover text
   output$samples_filter_plot9 <- renderPlotly({
     data <- filtered_samples()
     if (is.null(data) || nrow(data) == 0) {
-      # Return empty plotly plot with message
-      p <- ggplot() +
-        annotate("text", x = 0.5, y = 0.5, label = "No data to display after filtering", size = ANNOTATE_SIZE, color = "grey50") +
-        theme_void(base_size = PLOT_BASE_SIZE) +
-        theme(panel.background = element_rect(fill = "#f0f0f0", color = NA))
-      return(ggplotly(p) %>% 
-               layout(xaxis = list(showticklabels = FALSE), yaxis = list(showticklabels = FALSE)) %>%
-               config(displayModeBar = FALSE))
+      return(empty_plotly_message())
     }
     
     # Older local data snapshots may predate the probiotic-exposure column.
@@ -1422,13 +1471,7 @@ server <- function(input, output, session) {
     sig_counts <- bind_rows(no_sig_summary, sig_summary, unknown_sig_summary)
     
     if (nrow(sig_counts) == 0) {
-      p <- ggplot() +
-        annotate("text", x = 0.5, y = 0.5, label = "No data to display after filtering", size = ANNOTATE_SIZE, color = "grey50") +
-        theme_void(base_size = PLOT_BASE_SIZE) +
-        theme(panel.background = element_rect(fill = "#f0f0f0", color = NA))
-      return(ggplotly(p) %>% 
-               layout(xaxis = list(showticklabels = FALSE), yaxis = list(showticklabels = FALSE)) %>%
-               config(displayModeBar = FALSE))
+      return(empty_plotly_message())
     }
     
     # Order datasets by total sample count
@@ -1457,6 +1500,203 @@ server <- function(input, output, session) {
       layout(legend = list(orientation = "h", x = 0.5, xanchor = "center", y = 1.05)) %>%
       config(displayModeBar = FALSE)
   })
+
+  # Download handlers for the samples tab plots (data after filtering) ---------
+
+  # Download handler for Samples Plot 1
+  output$download_data_samples_plot1 <- downloadHandler(
+    filename = function() {
+      "samples_plot1_data.csv"  # Name of the downloaded file
+    },
+    content = function(file) {
+      data <- filtered_samples()
+      if (is.null(data) || nrow(data) == 0) {
+        write.csv(data.frame(), file, row.names = FALSE)
+        return()
+      }
+      dataset_counts <- data %>%
+        group_by(Dataset_ID) %>%
+        summarise(Count = n(), .groups = "drop") %>%
+        arrange(desc(Count))
+      write.csv(dataset_counts, file, row.names = FALSE)  # Write to CSV
+    }
+  )
+
+  # Download handler for Samples Plot 2
+  output$download_data_samples_plot2 <- downloadHandler(
+    filename = function() {
+      "samples_plot2_data.csv"  # Name of the downloaded file
+    },
+    content = function(file) {
+      data <- filtered_samples()
+      if (is.null(data) || nrow(data) == 0) {
+        write.csv(data.frame(), file, row.names = FALSE)
+        return()
+      }
+      seq_counts <- data %>%
+        mutate(Seq_Category = ifelse(Sequencing_Type == "SG", "Shotgun",
+                                     ifelse(is.na(Amplicon_Region) | Amplicon_Region == "", "Unknown", Amplicon_Region))) %>%
+        group_by(Seq_Category) %>%
+        summarise(Count = n(), .groups = "drop")
+      write.csv(seq_counts, file, row.names = FALSE)  # Write to CSV
+    }
+  )
+
+  # Download handler for Samples Plot 3
+  output$download_data_samples_plot3 <- downloadHandler(
+    filename = function() {
+      "samples_plot3_data.csv"  # Name of the downloaded file
+    },
+    content = function(file) {
+      data <- filtered_samples()
+      if (is.null(data) || nrow(data) == 0) {
+        write.csv(data.frame(), file, row.names = FALSE)
+        return()
+      }
+      dataset_seq_counts <- data %>%
+        mutate(Seq_Category = ifelse(Sequencing_Type == "SG", "Shotgun",
+                                     ifelse(is.na(Amplicon_Region) | Amplicon_Region == "", "Unknown", Amplicon_Region))) %>%
+        distinct(Dataset_ID, Seq_Category) %>%
+        group_by(Seq_Category) %>%
+        summarise(Count = n(), .groups = "drop")
+      write.csv(dataset_seq_counts, file, row.names = FALSE)  # Write to CSV
+    }
+  )
+
+  # Download handler for Samples Plot 4
+  output$download_data_samples_plot4 <- downloadHandler(
+    filename = function() {
+      "samples_plot4_data.csv"  # Name of the downloaded file
+    },
+    content = function(file) {
+      data <- filtered_samples()
+      if (is.null(data) || nrow(data) == 0) {
+        write.csv(data.frame(), file, row.names = FALSE)
+        return()
+      }
+      median_reads <- data %>%
+        filter(Sequencing_Type != "SG") %>%
+        filter(!is.na(Num_Reads_Nonchim)) %>%
+        group_by(Dataset_ID) %>%
+        summarise(MedianReads = median(Num_Reads_Nonchim, na.rm = TRUE), .groups = "drop") %>%
+        arrange(desc(MedianReads))
+      write.csv(median_reads, file, row.names = FALSE)  # Write to CSV
+    }
+  )
+
+  # Download handler for Samples Plot 5
+  output$download_data_samples_plot5 <- downloadHandler(
+    filename = function() {
+      "samples_plot5_data.csv"  # Name of the downloaded file
+    },
+    content = function(file) {
+      data <- filtered_samples()
+      if (is.null(data) || nrow(data) == 0) {
+        write.csv(data.frame(), file, row.names = FALSE)
+        return()
+      }
+      tech_counts <- data %>%
+        filter(!is.na(Seq_Tech) & Seq_Tech != "") %>%
+        distinct(Dataset_ID, Seq_Tech) %>%
+        group_by(Seq_Tech) %>%
+        summarise(Count = n(), .groups = "drop") %>%
+        arrange(desc(Count))
+      write.csv(tech_counts, file, row.names = FALSE)  # Write to CSV
+    }
+  )
+
+  # Download handler for Samples Plot 6
+  output$download_data_samples_plot6 <- downloadHandler(
+    filename = function() {
+      "samples_plot6_data.csv"  # Name of the downloaded file
+    },
+    content = function(file) {
+      data <- filtered_samples()
+      if (is.null(data) || nrow(data) == 0) {
+        write.csv(data.frame(), file, row.names = FALSE)
+        return()
+      }
+      site_dataset_counts <- data %>%
+        filter(!is.na(Sample_Site) & Sample_Site != "") %>%
+        distinct(Dataset_ID, Sample_Site) %>%
+        group_by(Sample_Site) %>%
+        summarise(Count = n(), .groups = "drop") %>%
+        mutate(Sample_Site = stringr::str_to_title(Sample_Site)) %>%
+        arrange(desc(Count))
+      write.csv(site_dataset_counts, file, row.names = FALSE)  # Write to CSV
+    }
+  )
+
+  # Download handler for Samples Plot 7
+  output$download_data_samples_plot7 <- downloadHandler(
+    filename = function() {
+      "samples_plot7_data.csv"  # Name of the downloaded file
+    },
+    content = function(file) {
+      data <- filtered_samples()
+      if (is.null(data) || nrow(data) == 0) {
+        write.csv(data.frame(), file, row.names = FALSE)
+        return()
+      }
+      site_counts <- data %>%
+        filter(!is.na(Sample_Site) & Sample_Site != "") %>%
+        group_by(Sample_Site) %>%
+        summarise(Count = n(), .groups = "drop") %>%
+        mutate(Sample_Site = stringr::str_to_title(Sample_Site)) %>%
+        arrange(desc(Count))
+      write.csv(site_counts, file, row.names = FALSE)  # Write to CSV
+    }
+  )
+
+  # Download handler for Samples Plot 8
+  output$download_data_samples_plot8 <- downloadHandler(
+    filename = function() {
+      "samples_plot8_data.csv"  # Name of the downloaded file
+    },
+    content = function(file) {
+      data <- filtered_samples()
+      if (is.null(data) || nrow(data) == 0) {
+        write.csv(data.frame(), file, row.names = FALSE)
+        return()
+      }
+      group_counts <- data %>%
+        filter(!is.na(Group) & Group != "") %>%
+        group_by(Group) %>%
+        summarise(Count = n(), .groups = "drop")
+      write.csv(group_counts, file, row.names = FALSE)  # Write to CSV
+    }
+  )
+
+  # Download handler for Samples Plot 9
+  output$download_data_samples_plot9 <- downloadHandler(
+    filename = function() {
+      "samples_plot9_data.csv"  # Name of the downloaded file
+    },
+    content = function(file) {
+      data <- filtered_samples()
+      if (is.null(data) || nrow(data) == 0) {
+        write.csv(data.frame(), file, row.names = FALSE)
+        return()
+      }
+      if (!"Probiotic_Exposure" %in% names(data)) {
+        data$Probiotic_Exposure <- NA
+      }
+      sig_counts <- data %>%
+        mutate(Significant_Factor_Status = significant_factor_status(Any_Significant_Factor)) %>%
+        group_by(Dataset_ID, Significant_Factor_Status) %>%
+        summarise(
+          Count = n(),
+          Short_term_Gluten_Challenge_n = sum(Short_term_Gluten_Challenge == TRUE, na.rm = TRUE),
+          NCGS_n = sum(NCGS == TRUE, na.rm = TRUE),
+          Other_Autoimmune_n = sum(Other_Autoimmune == TRUE, na.rm = TRUE),
+          Hookworm_n = sum(Hookworm == TRUE, na.rm = TRUE),
+          Possible_Celiac_n = sum(Possible_Celiac == TRUE, na.rm = TRUE),
+          Probiotic_Exposure_n = sum(Probiotic_Exposure == TRUE, na.rm = TRUE),
+          .groups = "drop"
+        )
+      write.csv(sig_counts, file, row.names = FALSE)  # Write to CSV
+    }
+  )
 }
 
 # Run the application 
