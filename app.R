@@ -47,16 +47,17 @@ if (file.exists("repo_data/latest_version.json")) {
 }
 
 # Define default columns to display for datasets and samples
-# ALL: Dataset_ID	Bioproject_ID	Record_Link	Publication_Title	Publication_Link	Month_Of_Publication	DOI	Used_In_Previous_Meta_Analysis	Lit_Search_Source	Data_Source	Sequencing_Type	Sequencing_Technology	Prospective_Study	Sample_Sites	Amplicon_Region	Forward_Primer	Reverse_Primer	DNA_Extraction_Kit	Read_Pairing	Trimming_Of_Reads_After_Acquisition	Bowtie2_Alignment_Sensitivity	Host_Genome_Index	MetaPhlAn_Database	Fw_Read_Trim_Position	Rv_Read_Trim_Position	ASV_Table_Length_Filter	Notes_From_Processing	Age_Range	Num_Samples	Num_Individuals	Num_Celiac_Samples	Num_GFD_Samples	Num_Prospective_Celiac_Samples	Longitudinal_Study	Country	Samples_With_Significant_Factors	Prospective_Studies	Shotgun_Studies	Study_Design_Description	Multiple_Publications
+# ALL: Dataset_ID	Bioproject_ID	Record_Link	Publication_Title	Publication_Link	Month_Of_Publication	DOI	Used_In_Previous_Meta_Analysis	Lit_Search_Source	Raw_Data_Source	Essential_Metadata_Source	Sequencing_Type	Sequencing_Technology	Prospective_Study	Sample_Sites	Amplicon_Region	Forward_Primer	Reverse_Primer	DNA_Extraction_Kit	DNA_Extraction_Is_Mechanical	Read_Pairing	Trimming_Of_Reads_After_Acquisition	Bowtie2_Alignment_Sensitivity	Host_Genome_Index	MetaPhlAn_Database	SILVA_Database	MetaPhlAn_Parameters	Fw_Read_Trim_Position	Rv_Read_Trim_Position	ASV_Table_Length_Filter	DADA2_Parameters	Notes_From_Processing	Median_Num_SGBs	Total_Num_SGBs	Median_Num_ASVs	Total_Num_ASVs	Num_ASVs_Classified_Family	Num_ASVs_Classified_Genus	Num_ASVs_Classified_Species	Age_Range	Sex_Metadata_Availability	Percent_Samples_Female	Percent_Participants_Female	Age_Metadata_Availability	Percent_Female_Cohort_Basis	Percent_Female_Derivation	Age_Sample_Level_Coverage	Sex_Sample_Level_Coverage	Num_Samples	Num_Individuals	Num_Celiac_Samples	Num_GFD_Samples	Num_Prospective_Celiac_Samples	Longitudinal_Study	Country	Samples_With_Significant_Factors	Prospective_Studies	Shotgun_Studies	Study_Design_Description	Multiple_Publications
 DEFAULT_DATA_SET_COLUMNS <- c(
   "Dataset_ID", "Sequencing_Type", "Amplicon_Region", "Sample_Sites",
   "Country", "Num_Samples", "Num_Celiac_Samples", 
   "Num_Prospective_Celiac_Samples", "Study_Design_Description"
 )
-# ALL: SRA_Run_ID	Sample_ID	Dataset_ID	SRA_Project_ID	Month_of_Publication	Publication_DOI	Sequencing_Type	Amplicon_Region	Num_Reads_Nonchim	Percent_Host_Reads_Removed	Total_Pairs_Pre_Host_Removal	Seq_Tech	DNA_Ext_Kit	Paired_Reads	Sample_Site	Diagnosed_Celiac	Gluten_Free_Diet	Will_Develop_Celiac	Group	Short_term_Gluten_Challenge	NCGS	Other_Autoimmune	Hookworm	Possible_Celiac	Any_Significant_Factor	Country	Age	Sex	DOID	EFO	UBERON	NCIT_Sex
+# ALL: Sample_ID	Dataset_ID	Subject_ID	Sampling_Timepoint	SRA_Run_ID	SRA_Project_ID	Month_of_Publication	Publication_DOI	Sequencing_Type	Amplicon_Region	Num_Reads_Input	Num_Reads_Filtered	Num_Reads_DenoisedF	Num_Reads_Nonchim	Total_Pairs_Pre_Host_Removal	Percent_Host_Reads_Removed	Percent_Unclassified_Reads	Num_SGBs	Num_ASVs	Seq_Tech	DNA_Ext_Kit	DNA_Extraction_Is_Mechanical	Paired_Reads	Sample_Site	Diagnosed_Celiac	Gluten_Free_Diet	Will_Develop_Celiac	Group	Short_term_Gluten_Challenge	NCGS	Other_Autoimmune	Hookworm	Possible_Celiac	Probiotic_Exposure	Any_Significant_Factor	Source_Study_Arm	Sample_Subsite	Matched_Set_ID	Trial_Arm	Marsh_Grade	HLA_DQ_Risk	CD_Serology_Status	Antibiotic_Exposure	Delivery_Mode	Age_At_CD_Diagnosis_Years	Country	Age	Sex	DOID	EFO	UBERON	NCIT_Sex
 DEFAULT_SAMPLE_COLUMNS <- c(
-  "Sample_ID", "Dataset_ID", "Sequencing_Type", "Amplicon_Region", 
-  "Seq_Tech", "Sample_Site", "Group", "Country"
+  "Sample_ID", "Dataset_ID", "Subject_ID", "Sampling_Timepoint",
+  "Probiotic_Exposure", "Sequencing_Type", "Amplicon_Region", "Seq_Tech",
+  "Sample_Site", "Group", "Country"
   
 )
 
@@ -244,6 +245,11 @@ server <- function(input, output, session) {
     )
     as.logical(y)
   }
+
+  significant_factor_status <- function(x) {
+    x_logical <- to_logical(x)
+    ifelse(is.na(x_logical), "UNKNOWN", ifelse(x_logical, "TRUE", "FALSE"))
+  }
   
   # Parse "Mon-YY" to a sortable key (YYYYMM) for stable ordering in DT tables.
   month_sort_key <- function(x) {
@@ -290,6 +296,9 @@ server <- function(input, output, session) {
     if ("Gluten_Free_Diet" %in% names(included_samples)) {
       included_samples$Gluten_Free_Diet <- to_logical(included_samples$Gluten_Free_Diet)
     }
+    if ("Probiotic_Exposure" %in% names(included_samples)) {
+      included_samples$Probiotic_Exposure <- to_logical(included_samples$Probiotic_Exposure)
+    }
     if ("Any_Significant_Factor" %in% names(included_samples)) {
       included_samples$Any_Significant_Factor <- to_logical(included_samples$Any_Significant_Factor)
     }
@@ -297,7 +306,7 @@ server <- function(input, output, session) {
     # Update the column choices for samples dynamically
     updateCheckboxGroupInput(session, "selected_sample_columns",
                              choices = colnames(included_samples),
-                             selected = DEFAULT_SAMPLE_COLUMNS)
+                             selected = intersect(DEFAULT_SAMPLE_COLUMNS, colnames(included_samples)))
     
     # Render the Sequencing Type filter UI
     output$seq_type_filter <- renderUI({
@@ -380,11 +389,10 @@ server <- function(input, output, session) {
     # Render the Any Significant Factor filter UI
     output$any_sig_factor_filter <- renderUI({
       if (!"Any_Significant_Factor" %in% names(included_samples)) return(NULL)
-      sig_values <- unique(included_samples$Any_Significant_Factor)
-      sig_values <- sig_values[!is.na(sig_values)]
+      sig_values <- unique(significant_factor_status(included_samples$Any_Significant_Factor))
 
       if (length(sig_values) == 0) return(NULL)
-      choices <- c("Yes" = TRUE, "No" = FALSE)
+      choices <- c("Yes" = "TRUE", "No" = "FALSE", "Unknown" = "UNKNOWN")
       choices <- choices[choices %in% sig_values]
 
       selectInput("any_sig_factor_filter_input",
@@ -438,7 +446,8 @@ server <- function(input, output, session) {
       data <- data[data$Seq_Tech %in% input$seq_tech_filter_input, ]  # Filter by sequencing technology
     }
     if (!is.null(input$any_sig_factor_filter_input) && length(input$any_sig_factor_filter_input) > 0) {
-      data <- data[data$Any_Significant_Factor %in% input$any_sig_factor_filter_input, ]  # Filter by significant factor
+      sig_status <- significant_factor_status(data$Any_Significant_Factor)
+      data <- data[sig_status %in% input$any_sig_factor_filter_input, ]  # Filter by significant-factor status
     }
     data
   })
@@ -1336,9 +1345,10 @@ server <- function(input, output, session) {
                config(displayModeBar = FALSE))
     }
     
-    # Get columns for significant factors details
-    factor_cols <- c("Short_term_Gluten_Challenge", "NCGS", "Other_Autoimmune", "Hookworm", "Possible_Celiac")
-    factor_labels <- c("Short-term Gluten Challenge", "NCGS", "Other Autoimmune", "Hookworm", "Possible Celiac")
+    # Older local data snapshots may predate the probiotic-exposure column.
+    if (!"Probiotic_Exposure" %in% names(data)) {
+      data$Probiotic_Exposure <- NA
+    }
     
     # Create hover text for samples with significant factors
     # Summarize which factors are present per dataset for samples with Any_Significant_Factor = TRUE
@@ -1346,7 +1356,10 @@ server <- function(input, output, session) {
       filter(Any_Significant_Factor == TRUE)
     
     no_sig_data <- data %>%
-      filter(Any_Significant_Factor == FALSE | is.na(Any_Significant_Factor))
+      filter(Any_Significant_Factor == FALSE)
+
+    unknown_sig_data <- data %>%
+      filter(is.na(Any_Significant_Factor))
     
     # Count samples with significant factors per dataset and create hover text
     if (nrow(sig_data) > 0) {
@@ -1359,6 +1372,7 @@ server <- function(input, output, session) {
           Other_Autoimmune_n = sum(Other_Autoimmune == TRUE, na.rm = TRUE),
           Hookworm_n = sum(Hookworm == TRUE, na.rm = TRUE),
           Possible_Celiac_n = sum(Possible_Celiac == TRUE, na.rm = TRUE),
+          Probiotic_Exposure_n = sum(Probiotic_Exposure == TRUE, na.rm = TRUE),
           .groups = "drop"
         ) %>%
         mutate(
@@ -1368,7 +1382,8 @@ server <- function(input, output, session) {
             ifelse(NCGS_n > 0, paste0("- NCGS: ", NCGS_n, "<br>"), ""),
             ifelse(Other_Autoimmune_n > 0, paste0("- Other Autoimmune: ", Other_Autoimmune_n, "<br>"), ""),
             ifelse(Hookworm_n > 0, paste0("- Hookworm: ", Hookworm_n, "<br>"), ""),
-            ifelse(Possible_Celiac_n > 0, paste0("- Possible Celiac: ", Possible_Celiac_n, "<br>"), "")
+            ifelse(Possible_Celiac_n > 0, paste0("- Possible Celiac: ", Possible_Celiac_n, "<br>"), ""),
+            ifelse(Probiotic_Exposure_n > 0, paste0("- Probiotic Exposure: ", Probiotic_Exposure_n, "<br>"), "")
           ),
           Factor_Label = "Significant factors"
         ) %>%
@@ -1389,9 +1404,22 @@ server <- function(input, output, session) {
     } else {
       no_sig_summary <- data.frame(Dataset_ID = character(), Count = numeric(), Hover_Text = character(), Factor_Label = character())
     }
+
+    # Count samples whose significant-factor status cannot be fully resolved
+    if (nrow(unknown_sig_data) > 0) {
+      unknown_sig_summary <- unknown_sig_data %>%
+        group_by(Dataset_ID) %>%
+        summarise(Count = n(), .groups = "drop") %>%
+        mutate(
+          Hover_Text = "Significant-factor status unknown",
+          Factor_Label = "Unknown"
+        )
+    } else {
+      unknown_sig_summary <- data.frame(Dataset_ID = character(), Count = numeric(), Hover_Text = character(), Factor_Label = character())
+    }
     
     # Combine the data
-    sig_counts <- bind_rows(no_sig_summary, sig_summary)
+    sig_counts <- bind_rows(no_sig_summary, sig_summary, unknown_sig_summary)
     
     if (nrow(sig_counts) == 0) {
       p <- ggplot() +
@@ -1411,11 +1439,15 @@ server <- function(input, output, session) {
       pull(Dataset_ID)
     
     sig_counts$Dataset_ID <- factor(sig_counts$Dataset_ID, levels = dataset_order)
-    sig_counts$Factor_Label <- factor(sig_counts$Factor_Label, levels = c("Significant factors", "No significant factors"))
+    sig_counts$Factor_Label <- factor(sig_counts$Factor_Label, levels = c("Significant factors", "No significant factors", "Unknown"))
     
     p <- ggplot(sig_counts, aes(x = Dataset_ID, y = Count, fill = Factor_Label, text = Hover_Text)) +
       geom_bar(stat = "identity", position = position_stack(reverse = FALSE)) +
-      scale_fill_manual(values = c("No significant factors" = COLORS$SECONDARY, "Significant factors" = "#e06c75")) +
+      scale_fill_manual(values = c(
+        "No significant factors" = COLORS$SECONDARY,
+        "Significant factors" = "#e06c75",
+        "Unknown" = "#8c8c8c"
+      )) +
       labs(x = "Dataset ID", y = "Number of Samples", fill = "") +
       theme_minimal(base_size = PLOT_BASE_SIZE) +
       theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
