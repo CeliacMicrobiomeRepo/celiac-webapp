@@ -35,7 +35,8 @@ VERSION_INFO <- list(
 if (file.exists("repo_data/latest_version.json")) {
   try({
     json_data <- jsonlite::fromJSON("repo_data/latest_version.json")
-    VERSION_INFO$number <- sprintf("%.1f", as.numeric(json_data$latest_version_number))
+    ver <- json_data$latest_version_number
+    VERSION_INFO$number <- if (is.numeric(ver)) sprintf("%.1f", ver) else as.character(ver)
     VERSION_INFO$lit_search_date <- json_data$latest_lit_search_date
   }, silent = TRUE)
 }
